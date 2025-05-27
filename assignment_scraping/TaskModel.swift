@@ -4,10 +4,9 @@
 //
 //  Created by Yuta Nisimatsu on 2025/05/05.
 //
-
 import Foundation
 
-struct Task: Identifiable, Codable {
+struct BeefTask: Identifiable, Codable {
     var id: String { url }  // URLをIDとして利用
     let course: String
     let content: String

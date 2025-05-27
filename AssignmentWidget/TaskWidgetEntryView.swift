@@ -61,40 +61,115 @@ struct TaskWidgetEntryView: View {
             }
         }()
 
-        HStack(alignment: .top, spacing: 8) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(leftTitle)
-                    .font(.caption2)
-                    .foregroundColor(.gray)
+        VStack(alignment: .leading, spacing: 8) {
+            // ヘッダー：タイトルとロゴ
+            HStack {
+                Rectangle()
+                    .fill(Color(red: 0.30, green: 0.78, blue: 0.60))
+                    .frame(width: 4, height: 16)
+                    .cornerRadius(2)
 
-                ForEach(leftTasks.prefix(2)) { task in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(task.title)
-                            .font(.system(size: 12, weight: .semibold))
-                            .lineLimit(2)
-                        Text(shortDate(from: task.deadline))
+                Text("課題一覧")
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+                    .foregroundColor(Color(red: 0.30, green: 0.78, blue: 0.60))
+
+                Spacer()
+                HStack(spacing: 4) {
+                    Image("Unitime_wid")
+                        .resizable()
+                        .aspectRatio(1, contentMode: .fit)
+                        .frame(width: 16, height: 16)
+                        .clipShape(RoundedRectangle(cornerRadius: 5))
+                    Text("Uni Time")
+                        .font(.caption2)
+                        .foregroundColor(.primary.opacity(0.7))
+                }
+            }
+
+            if sortedTasks.isEmpty {
+                // ✅ 課題が0件のとき
+                Spacer()
+                HStack {
+                    Spacer()
+                    Text("現在、課題はありません。")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                Spacer()
+            } else if rightTasks.isEmpty {
+                // ✅ 提出日が1日分だけのとき：Dividerなしで全体表示
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(leftTitle)
+                        .font(.caption2)
+                        .foregroundColor(.gray)
+
+                    ForEach(leftTasks.prefix(4)) { task in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(task.title)
+                                .font(.system(size: 12, weight: .semibold))
+                                .lineLimit(2)
+                            Text(shortDate(from: task.deadline))
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+
+                    let additionalCount = max(0, leftTasks.count - 4)
+                    if additionalCount > 0 {
+                        Text("その他 +\(additionalCount)件")
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
                     }
                 }
-            }
+            } else {
+                // 通常：左右に分けて表示
+                HStack(alignment: .top, spacing: 8) {
+                    Spacer(minLength: 0) // ✅ 左余白確保
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(leftTitle)
+                            .font(.caption2)
+                            .foregroundColor(.gray)
 
-            Divider()
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("それ以降")
-                    .font(.caption2)
-                    .foregroundColor(.gray)
-
-                ForEach(rightTasks.prefix(2)) { task in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(task.title)
-                            .font(.system(size: 12, weight: .semibold))
-                            .lineLimit(2)
-                        Text(shortDate(from: task.deadline))
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
+                        ForEach(leftTasks.prefix(2)) { task in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(task.title)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .lineLimit(2)
+                                Text(shortDate(from: task.deadline))
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
                     }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("それ以降")
+                            .font(.caption2)
+                            .foregroundColor(.gray)
+
+                        ForEach(rightTasks.prefix(2)) { task in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(task.title)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .lineLimit(2)
+                                Text(shortDate(from: task.deadline))
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+
+                        let additionalCount = max(0, rightTasks.count - 2)
+                        if additionalCount > 0 {
+                            Text("その他 +\(additionalCount)件")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    Spacer(minLength: 0) // ✅ 右余白確保
                 }
             }
         }

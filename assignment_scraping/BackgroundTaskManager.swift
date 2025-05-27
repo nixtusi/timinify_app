@@ -4,7 +4,6 @@
 //
 //  Created by Yuta Nisimatsu on 2025/05/17.
 //
-
 import BackgroundTasks
 import Foundation
 
@@ -38,7 +37,7 @@ class BackgroundTaskManager {
 
         let operation = BlockOperation {
             print("📡 バックグラウンドでAPI実行")
-            TaskFetcher().fetchTasksFromAPI()
+            TaskFetcher().fetchTasksFromAPI()  // Task → BeefTask に対応済のFetcherを使っている前提
             task.setTaskCompleted(success: true)
         }
 

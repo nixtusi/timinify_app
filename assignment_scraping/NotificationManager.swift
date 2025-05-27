@@ -31,7 +31,7 @@ class NotificationManager {
     }
 
     // 📅 通知をスケジュール
-    func scheduleNotifications(for tasks: [Task]) {
+    func scheduleNotifications(for tasks: [BeefTask]) {
         clearAllScheduledNotifications()
         
         let formatter = DateFormatter()
@@ -52,9 +52,10 @@ class NotificationManager {
                 content.body = "「\(task.title)」提出まであと\(Int(offset / 3600))時間です！"
                 content.sound = UNNotificationSound.default
 
-                let trigger = UNCalendarNotificationTrigger(dateMatching: Calendar.current.dateComponents(
-                    [.year, .month, .day, .hour, .minute], from: triggerDate),
-                    repeats: false)
+                let trigger = UNCalendarNotificationTrigger(
+                    dateMatching: Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: triggerDate),
+                    repeats: false
+                )
 
                 let identifier = "\(task.url)_\(Int(offset))"
                 let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)

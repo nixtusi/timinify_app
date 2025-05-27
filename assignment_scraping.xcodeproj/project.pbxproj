@@ -61,13 +61,6 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		DAE3B23B2DD635FB00B5E7ED /* Exceptions for "assignment_scraping" folder in "assignment_scraping" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Untitled.swift,
-			);
-			target = DA8B073B2DBFD74A00CDAC0A /* assignment_scraping */;
-		};
 		DAF2B8682DD56CFE00F900F4 /* Exceptions for "AssignmentWidget" folder in "AssignmentWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -87,9 +80,6 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		DA8B073E2DBFD74A00CDAC0A /* assignment_scraping */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				DAE3B23B2DD635FB00B5E7ED /* Exceptions for "assignment_scraping" folder in "assignment_scraping" target */,
-			);
 			path = assignment_scraping;
 			sourceTree = "<group>";
 		};

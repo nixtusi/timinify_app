@@ -3,6 +3,12 @@
 <plist version="1.0">
 <dict>
 	<key>com.apple.security.application-groups</key>
-	<array/>
+	<array>
+		<string>group.com.yuta.beefapp</string>
+	</array>
+    <key>BGTaskSchedulerPermittedIdentifiers</key>
+    <array>
+        <string>com.yuta.beefapp.refresh</string>
+    </array>
 </dict>
 </plist>

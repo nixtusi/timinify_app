@@ -4,22 +4,20 @@
 //  assignment_scraping
 //
 //  Created by Yuta Nisimatsu on 2025/05/05.
-//
-import Foundation
+//import Foundation
 import Combine
 import WidgetKit
 
 struct TaskListResponse: Codable {
-    let tasks: [Task]
+    let tasks: [BeefTask]
 }
 
 class TaskFetcher: ObservableObject {
-    @Published var tasks: [Task] = []
+    @Published var tasks: [BeefTask] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
 
     private let storageKey = "savedTasks"
-    //private let apiURL = URL(string: "https://api.timinify.com/beefplus")!
     private let apiURL = URL(string: "https://beefplus.timinify.com/beefplus")!
 
     var loginID: String = ""
@@ -27,7 +25,7 @@ class TaskFetcher: ObservableObject {
 
     func loadSavedTasks() {
         if let data = UserDefaults.standard.data(forKey: storageKey),
-           let decoded = try? JSONDecoder().decode([Task].self, from: data) {
+           let decoded = try? JSONDecoder().decode([BeefTask].self, from: data) {
             self.tasks = decoded
         }
     }
@@ -79,7 +77,7 @@ class TaskFetcher: ObservableObject {
 
                 if let decoded = try? JSONDecoder().decode(TaskListResponse.self, from: data) {
                     self.tasks = decoded.tasks
-                    self.saveTasksToLocal(decoded.tasks) // ✅ 成功後に保存＋Widget更新
+                    self.saveTasksToLocal(decoded.tasks)
                     NotificationManager.shared.scheduleNotifications(for: decoded.tasks)
                     self.isLoading = false
                     return
@@ -96,7 +94,7 @@ class TaskFetcher: ObservableObject {
         }.resume()
     }
 
-    private func saveTasksToLocal(_ tasks: [Task]) {
+    private func saveTasksToLocal(_ tasks: [BeefTask]) {
         // ① メインアプリ用に保存
         if let data = try? JSONEncoder().encode(tasks) {
             UserDefaults.standard.set(data, forKey: storageKey)

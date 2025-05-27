@@ -4,9 +4,8 @@
 //
 //  Created by Yuta Nisimatsu on 2025/05/05.
 //
-
 import SwiftUI
-import WidgetKit //ウィジェット更新用
+import WidgetKit // ウィジェット更新用
 
 struct TaskListView: View {
     @AppStorage("loginID") var loginID: String = ""
@@ -18,28 +17,28 @@ struct TaskListView: View {
 
     var body: some View {
         NavigationView {
-            List(fetcher.tasks) { task in
+            List(fetcher.tasks) { beefTask in
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(task.course)
+                    Text(beefTask.course)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
 
-                    Text(task.title)
+                    Text(beefTask.title)
                         .font(.headline)
 
                     HStack {
-                        Text("締切: \(task.deadline)")
+                        Text("締切: \(beefTask.deadline)")
                             .font(.footnote)
                         Spacer()
-                        Text(task.timeRemaining)
+                        Text(beefTask.timeRemaining)
                             .font(.footnote)
                             .foregroundColor(.red)
                     }
                 }
                 .padding(.vertical, 6)
-                .contentShape(Rectangle()) //VStack 全体がタップ可能領域として明示される
+                .contentShape(Rectangle())
                 .onTapGesture {
-                    if let url = URL(string: task.url) {
+                    if let url = URL(string: beefTask.url) {
                         UIApplication.shared.open(url)
                     }
                 }
@@ -54,13 +53,11 @@ struct TaskListView: View {
                     hasLoadedOnce = true
                 }
 
-                //表示されるたびに取得 + ウィジェット更新
                 fetcher.fetchTasksFromAPI()
                 WidgetCenter.shared.reloadAllTimelines()
             }
             .onChange(of: scenePhase) { newPhase in
                 if newPhase == .active {
-                    //アプリがフォアグラウンドに復帰したときにも取得 + ウィジェット更新
                     fetcher.fetchTasksFromAPI()
                     WidgetCenter.shared.reloadAllTimelines()
                 }
