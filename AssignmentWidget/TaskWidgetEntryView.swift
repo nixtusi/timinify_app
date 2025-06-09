@@ -4,6 +4,7 @@
 //
 //  Created by Yuta Nisimatsu on 2025/05/15.
 //
+
 import SwiftUI
 import WidgetKit
 
@@ -73,6 +74,10 @@ struct TaskWidgetEntryView: View {
                     .font(.subheadline)
                     .fontWeight(.bold)
                     .foregroundColor(Color(red: 0.30, green: 0.78, blue: 0.60))
+                
+                Text("更新 \(formattedTime(from: entry.date))")
+                    .font(.caption2)
+                    .foregroundColor(.gray)
 
                 Spacer()
                 HStack(spacing: 4) {
@@ -88,7 +93,7 @@ struct TaskWidgetEntryView: View {
             }
 
             if sortedTasks.isEmpty {
-                // ✅ 課題が0件のとき
+                //課題が0件のとき
                 Spacer()
                 HStack {
                     Spacer()
@@ -99,48 +104,71 @@ struct TaskWidgetEntryView: View {
                 }
                 Spacer()
             } else if rightTasks.isEmpty {
-                // ✅ 提出日が1日分だけのとき：Dividerなしで全体表示
+                //提出日が1日分だけのとき：Dividerなしで全体表示
                 VStack(alignment: .leading, spacing: 6) {
                     Text(leftTitle)
                         .font(.caption2)
                         .foregroundColor(.gray)
 
-                    ForEach(leftTasks.prefix(4)) { task in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(task.title)
-                                .font(.system(size: 12, weight: .semibold))
-                                .lineLimit(2)
-                            Text(shortDate(from: task.deadline))
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
+                    ForEach(leftTasks.prefix(2)) { task in
+                        if let url = URL(string: task.url) {
+                            Link(destination: url) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(task.title)
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .lineLimit(2)
+                                        .truncationMode(.tail) //...用
+                                        .frame(maxHeight: 32) //...用(必要に応じて調整)
+                                    Text(shortDate(from: task.deadline))
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.secondary)
+                                }
+                            }
                         }
                     }
 
-                    let additionalCount = max(0, leftTasks.count - 4)
+                    let additionalCount = max(0, leftTasks.count - 2)
                     if additionalCount > 0 {
                         Text("その他 +\(additionalCount)件")
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
                     }
+                    
                 }
             } else {
                 // 通常：左右に分けて表示
                 HStack(alignment: .top, spacing: 8) {
-                    Spacer(minLength: 0) // ✅ 左余白確保
+                    Spacer(minLength: 0) //左余白確保
                     VStack(alignment: .leading, spacing: 6) {
                         Text(leftTitle)
                             .font(.caption2)
                             .foregroundColor(.gray)
 
                         ForEach(leftTasks.prefix(2)) { task in
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(task.title)
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .lineLimit(2)
-                                Text(shortDate(from: task.deadline))
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.secondary)
+                            
+                            if let url = URL(string: task.url) {
+                                Link(destination: url) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(task.title)
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .lineLimit(2)
+                                            .truncationMode(.tail) //...用
+                                            .frame(maxHeight: 32) //...用(必要に応じて調整)
+                                        Text(shortDate(from: task.deadline))
+                                            .font(.system(size: 10))
+                                            .foregroundColor(.secondary)
+                                        
+                                        
+                                    }
+                                }
                             }
+                        }
+                        
+                        let additionalCount = max(0, leftTasks.count - 2)
+                        if additionalCount > 0 {
+                            Text("その他 +\(additionalCount)件")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
                         }
                     }
 
@@ -152,13 +180,19 @@ struct TaskWidgetEntryView: View {
                             .foregroundColor(.gray)
 
                         ForEach(rightTasks.prefix(2)) { task in
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(task.title)
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .lineLimit(2)
-                                Text(shortDate(from: task.deadline))
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.secondary)
+                            if let url = URL(string: task.url) {
+                                Link(destination: url) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(task.title)
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .lineLimit(2)
+                                            .truncationMode(.tail) //...用
+                                            .frame(maxHeight: 32) //...用(必要に応じて調整)
+                                        Text(shortDate(from: task.deadline))
+                                            .font(.system(size: 10))
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
                             }
                         }
 
@@ -169,7 +203,7 @@ struct TaskWidgetEntryView: View {
                                 .foregroundColor(.secondary)
                         }
                     }
-                    Spacer(minLength: 0) // ✅ 右余白確保
+                    Spacer(minLength: 0) //右余白確保
                 }
             }
         }
@@ -190,4 +224,11 @@ extension View {
             self
         }
     }
+}
+
+private func formattedTime(from date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "HH:mm"
+    formatter.timeZone = TimeZone(identifier: "Asia/Tokyo")
+    return formatter.string(from: date)
 }

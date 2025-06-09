@@ -3,7 +3,7 @@
 //  assignment_scraping
 //
 //  Created by Yuta Nisimatsu on 2025/05/05.
-//
+
 import SwiftUI
 import WidgetKit // ウィジェット更新用
 

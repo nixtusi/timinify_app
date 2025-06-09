@@ -4,6 +4,7 @@
 //
 //  Created by Yuta Nisimatsu on 2025/04/29.
 //
+
 import SwiftUI
 import BackgroundTasks
 import WidgetKit

@@ -12,10 +12,19 @@ struct MainTabView: View {
 
     var body: some View {
         TabView {
+            NavigationView {
+                TimetableScreen()
+                    .navigationTitle("時間割")
+            }
+            .tabItem {
+                Label("時間割", systemImage: "calendar")
+            }
+            
             TaskListView()
                 .tabItem {
                     Label("課題", systemImage: "list.bullet")
                 }
+            
             SettingsView()
                 .tabItem {
                     Label("設定", systemImage: "gear")
@@ -27,7 +36,7 @@ struct MainTabView: View {
         .alert(isPresented: $showServerOffAlert) {
             Alert(
                 title: Text("サーバー停止中"),
-                message: Text("現在（0:10〜6:00）はサーバーを停止しているため、新たな課題取得はできません。"),
+                message: Text("現在（0:10〜6:00）はサーバーを停止しているため、新たな情報取得はできません。"),
                 dismissButton: .default(Text("OK"))
             )
         }

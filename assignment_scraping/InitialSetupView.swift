@@ -3,7 +3,7 @@
 //  assignment_scraping
 //
 //  Created by Yuta Nisimatsu on 2025/05/15.
-//import SwiftUI
+//
 //
 
 import SwiftUI
@@ -15,7 +15,6 @@ struct InitialSetupView: View {
 
     @State private var tempLoginID: String = ""
     @State private var tempPassword: String = ""
-    @State private var agreed: Bool = false
     @State private var showingTerms = false
 
     var onComplete: () -> Void
@@ -50,31 +49,19 @@ struct InitialSetupView: View {
                 }
                 .padding(.horizontal)
 
-                HStack(spacing: 8) {
-                    Button(action: {
-                        agreed.toggle()
-                    }) {
-                        Image(systemName: agreed ? "checkmark.square.fill" : "square")
-                            .resizable()
-                            .frame(width: 20, height: 20)
-                            .foregroundColor(agreed ? .blue : .gray)
-                    }
+                //チェックボックスを削除し、注意文＋リンクを表示
+                HStack(spacing: 0) {
+                    Text("利用規約")
+                        .foregroundColor(.blue)
+                        .fontWeight(.bold) // ← 太字にする
+                        .onTapGesture {
+                            showingTerms = true
+                        }
 
-                    Group {
-                        Text("利用規約")
-                            .foregroundColor(.blue)
-                            .underline()
-                            .onTapGesture {
-                                showingTerms = true
-                            }
-
-                        Text("に同意する")
-                            .foregroundColor(.primary)
-                    }
-                    .font(.body)
-
-                    Spacer()
+                    Text("に同意のうえ、ご利用ください。")
                 }
+                .font(.footnote)
+                .multilineTextAlignment(.center)
                 .padding(.horizontal)
 
                 Button(action: {
@@ -86,12 +73,12 @@ struct InitialSetupView: View {
                     Text("はじめる")
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(agreed ? Color.black : Color.gray)
+                        .background((!tempLoginID.isEmpty && !tempPassword.isEmpty) ? Color.black : Color.gray)
                         .foregroundColor(.white)
                         .cornerRadius(10)
                 }
                 .padding(.horizontal)
-                .disabled(!agreed || tempLoginID.isEmpty || tempPassword.isEmpty)
+                .disabled(tempLoginID.isEmpty || tempPassword.isEmpty)
 
                 Spacer()
             }
