@@ -7,6 +7,7 @@
 
 import Foundation
 import UserNotifications
+import FirebaseAuth
 
 class NotificationManager {
     
@@ -32,6 +33,13 @@ class NotificationManager {
 
     // 📅 通知をスケジュール
     func scheduleNotifications(for tasks: [BeefTask]) {
+        guard let email = Auth.auth().currentUser?.email,
+              let studentNumber = email.components(separatedBy: "@").first else {
+            print("❌ 通知スケジュール時に学籍番号が取得できませんでした")
+            return
+        }
+        print("🔔 通知スケジュール対象: \(studentNumber)")
+
         clearAllScheduledNotifications()
         
         let formatter = DateFormatter()

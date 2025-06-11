@@ -7,6 +7,7 @@
 
 import BackgroundTasks
 import Foundation
+import FirebaseAuth
 
 class BackgroundTaskManager {
     static let shared = BackgroundTaskManager()
@@ -38,8 +39,15 @@ class BackgroundTaskManager {
 
         let operation = BlockOperation {
             print("📡 バックグラウンドでAPI実行")
-            TaskFetcher().fetchTasksFromAPI()  // Task → BeefTask に対応済のFetcherを使っている前提
-            task.setTaskCompleted(success: true)
+            if let email = Auth.auth().currentUser?.email,
+               let studentNumber = email.components(separatedBy: "@").first {
+                var fetcher = TaskFetcher()
+                fetcher.fetchTasksFromAPI()
+                task.setTaskCompleted(success: true)
+            } else {
+                print("❌ ログインユーザー情報が取得できませんでした")
+                task.setTaskCompleted(success: false)
+            }
         }
 
         task.expirationHandler = {

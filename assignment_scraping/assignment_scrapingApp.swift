@@ -8,16 +8,22 @@
 import SwiftUI
 import BackgroundTasks
 import WidgetKit
+import Firebase
+import FirebaseCore
+import FirebaseAuth
 
 @main
 struct BeefTaskApp: App {
-    @AppStorage("agreedToTerms") private var agreedToTerms: Bool = false
+    @StateObject private var appState = AppState()
 
     init() {
+        // ✅ Firebase初期化
+        FirebaseApp.configure()
+
         // ✅ 通知許可
         NotificationManager.shared.requestAuthorization()
 
-        // ✅ BGTask 登録（self を使わず static 関数に変更）
+        // ✅ BGTask登録
         BGTaskScheduler.shared.register(
             forTaskWithIdentifier: "com.yuta.beefapp.refresh",
             using: nil
@@ -25,45 +31,63 @@ struct BeefTaskApp: App {
             BeefTaskApp.handleAppRefresh(task: task as! BGAppRefreshTask)
         }
 
-        // ✅ スケジューリング
+        // ✅ スケジュール登録
         BeefTaskApp.scheduleAppRefresh()
-        
-        
     }
 
     var body: some Scene {
         WindowGroup {
-            if agreedToTerms {
-                MainTabView()
-            } else {
-                InitialSetupView(onComplete: {
-                    // 規約に同意後に呼ばれる（何もしなくてもOK）
-                })
+            RootView()
+                .environmentObject(appState)
+                .onAppear {
+                    // ✅ FirebaseAuth からログイン状態を判定（メール認証済みのみ）
+                    if let user = Auth.auth().currentUser {
+                        user.reload { _ in
+                            if user.isEmailVerified {
+                                appState.isLoggedIn = true
+                            }
+                        }
+                    }
+                    // ✅ FirebaseAuth のメールアドレスから学籍番号を取得（AppStorage は不要）
+                    if let email = Auth.auth().currentUser?.email {
+                        appState.studentNumber = email.components(separatedBy: "@").first ?? ""
+                    }
+                }
+        }
+    }
+
+    // ✅ ログイン状態に応じて遷移先を分岐
+    @ViewBuilder
+    private func RootView() -> some View {
+        if appState.isLoggedIn {
+            MainTabView()
+        } else {
+            InitialSetupView {
+                appState.isLoggedIn = true
             }
         }
     }
 
-    // ✅ static に変更（self を使わないため）
+    // ✅ 課題取得タスク処理
     static func handleAppRefresh(task: BGAppRefreshTask) {
         print("📡 BGTask: 開始")
 
-        // タスクがタイムアウトする前に中止処理
         task.expirationHandler = {
             print("⚠️ BGTask: タイムアウト")
             task.setTaskCompleted(success: false)
         }
 
-        // 非同期タスクで課題情報を取得して保存
         Task {
             await fetchAndStoreAssignments()
             task.setTaskCompleted(success: true)
-            scheduleAppRefresh()  // 次回予約
+            scheduleAppRefresh()
         }
     }
 
+    // ✅ BGTaskスケジュール登録
     static func scheduleAppRefresh() {
         let request = BGAppRefreshTaskRequest(identifier: "com.yuta.beefapp.refresh")
-        request.earliestBeginDate = Date(timeIntervalSinceNow: 600) // 10分後
+        request.earliestBeginDate = Date(timeIntervalSinceNow: 600)
 
         do {
             try BGTaskScheduler.shared.submit(request)
@@ -72,10 +96,11 @@ struct BeefTaskApp: App {
             print("❌ BGTask: スケジュール登録失敗 - \(error)")
         }
     }
-    
+
+    // ✅ 課題情報を取得してWidgetに保存
     static func fetchAndStoreAssignments() async {
         do {
-            let url = URL(string: "https://your-api.com/assignments")!
+            let url = URL(string: "https://your-api.com/assignments")! // ← 必要に応じて差し替え
             let (data, _) = try await URLSession.shared.data(from: url)
             let tasks = try JSONDecoder().decode([SharedTask].self, from: data)
 
@@ -90,4 +115,3 @@ struct BeefTaskApp: App {
         }
     }
 }
-

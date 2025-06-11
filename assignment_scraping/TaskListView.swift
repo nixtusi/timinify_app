@@ -5,75 +5,118 @@
 //  Created by Yuta Nisimatsu on 2025/05/05.
 
 import SwiftUI
-import WidgetKit // ウィジェット更新用
+import WidgetKit
 
 struct TaskListView: View {
-    @AppStorage("loginID") var loginID: String = ""
-    @AppStorage("loginPassword") var loginPassword: String = ""
     @StateObject private var fetcher = TaskFetcher()
     @Environment(\.scenePhase) var scenePhase
 
-    @State private var hasLoadedOnce = false
-
     var body: some View {
-        NavigationView {
-            List(fetcher.tasks) { beefTask in
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(beefTask.course)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+        ZStack {
+            Color(.systemGray6)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(spacing: 16) {
+                        ForEach(fetcher.tasks) { beefTask in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(beefTask.course)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                
+                                Text(beefTask.title)
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                
+                                HStack {
+                                    Text("締切: \(beefTask.deadline)")
+                                        .font(.footnote)
+                                    Spacer()
+                                    Text(beefTask.timeRemaining)
+                                        .font(.footnote)
+                                        .foregroundColor(.red)
+                                }
+                            }
+                            .padding()
+                            .background(Color.white)
+                            .cornerRadius(12)
+                            .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+                            .padding(.horizontal)
+                            .onTapGesture {
+                                if let url = URL(string: beefTask.url) {
+                                    UIApplication.shared.open(url)
+                                }
+                            }
+                        }
+                        
+                        //リスト下部に更新時間を表示
+                        if !fetcher.tasks.isEmpty || fetcher.lastUpdated != nil || fetcher.isLoading {
+                            HStack(spacing: 8) {
+                                if let updated = fetcher.lastUpdated {
+                                    Text("最終更新 \(formattedDate(updated))")
+                                }
 
-                    Text(beefTask.title)
-                        .font(.headline)
-
-                    HStack {
-                        Text("締切: \(beefTask.deadline)")
+                                if fetcher.isLoading {
+                                    Text("最新データ取得中…")
+                                }
+                            }
                             .font(.footnote)
-                        Spacer()
-                        Text(beefTask.timeRemaining)
-                            .font(.footnote)
-                            .foregroundColor(.red)
+                            .foregroundColor(.gray)
+                            .padding(.bottom, 12)
+                        }
+                        
                     }
+                    .padding(.top)
                 }
-                .padding(.vertical, 6)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    if let url = URL(string: beefTask.url) {
-                        UIApplication.shared.open(url)
-                    }
+                .refreshable {
+                    fetcher.fetchTasksFromAPI()
                 }
+                //Divider() tabbarとの境界線
             }
-            .navigationTitle("課題一覧")
-            .onAppear {
-                fetcher.loginID = loginID
-                fetcher.loginPassword = loginPassword
 
-                if !hasLoadedOnce {
-                    fetcher.loadSavedTasks()
-                    hasLoadedOnce = true
-                }
-
+//            if fetcher.isLoading {
+//                ProgressView()
+//                    .scaleEffect(1.8)
+//                    .progressViewStyle(CircularProgressViewStyle())
+//                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+//            } else if let error = fetcher.errorMessage {
+//                Text("⚠️ \(error)")
+//                    .foregroundColor(.red)
+//                    .padding()
+//            }
+        }
+        .onAppear {
+            fetcher.fetchTasksFromAPI()
+        }
+        .onChange(of: scenePhase) { newPhase in
+            if newPhase == .active {
                 fetcher.fetchTasksFromAPI()
                 WidgetCenter.shared.reloadAllTimelines()
             }
-            .onChange(of: scenePhase) { newPhase in
-                if newPhase == .active {
-                    fetcher.fetchTasksFromAPI()
-                    WidgetCenter.shared.reloadAllTimelines()
-                }
-            }
-            .overlay {
-                if fetcher.isLoading {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle())
-                        .scaleEffect(2.0)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let error = fetcher.errorMessage {
-                    Text("⚠️ \(error)")
-                        .foregroundColor(.red)
-                        .padding()
-                }
-            }
         }
+        
+//        .toolbar {
+//            ToolbarItem(placement: .principal) {
+//                HStack(alignment: .bottom, spacing: 6) {
+//                    Text("課題")
+//                        .font(.system(size: 17, weight: .semibold)) // ← .headline だと少し違う
+//                        .foregroundColor(.primary)
+////                    if let updated = fetcher.lastUpdated {
+////                        Text("(\(formattedDate(updated)))")
+////                            .font(.subheadline)
+////                            .foregroundColor(.gray)
+////                    }
+//                    Spacer() // ← 左寄せに必要
+//                }
+//            }
+//        }
     }
+}
+
+private func formattedDate(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "HH:mm"
+    formatter.timeZone = TimeZone(identifier: "Asia/Tokyo")
+    return formatter.string(from: date)
 }
