@@ -6,9 +6,10 @@
 	<array>
 		<string>group.com.yuta.beefapp</string>
 	</array>
-    <key>BGTaskSchedulerPermittedIdentifiers</key>
-    <array>
-        <string>com.yuta.beefapp.refresh</string>
-    </array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.assignment_scraping.refresh</string>
+		<string>com.yuta.beefapp.refresh</string>
+	</array>
 </dict>
 </plist>

@@ -14,11 +14,12 @@ import FirebaseAuth
 
 @main
 struct BeefTaskApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var appState = AppState()
 
     init() {
         // ✅ Firebase初期化
-        FirebaseApp.configure()
+        //FirebaseApp.configure()
 
         // ✅ 通知許可
         NotificationManager.shared.requestAuthorization()
@@ -113,5 +114,14 @@ struct BeefTaskApp: App {
         } catch {
             print("❌ 課題取得エラー: \(error)")
         }
+    }
+}
+
+// MARK: - Firebase用 AppDelegate
+class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        FirebaseApp.configure()
+        return true
     }
 }

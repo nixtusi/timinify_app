@@ -18,7 +18,7 @@ struct MainTabView: View {
 
             TabView {
                 NavigationView {
-                    TimetableScreen()
+                    TimetableView()
                         .navigationTitle("時間割")
                 }
                 .tabItem {

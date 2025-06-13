@@ -10,6 +10,7 @@ import FirebaseAuth
 
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
+    @StateObject private var fetcher = TimetableFetcher()
 
     @State private var showingLogoutAlert = false
     @State private var resetMessage: String?
@@ -50,7 +51,22 @@ struct SettingsView: View {
 
             Section(header: Text("その他")) {
                 Button("データを更新する") {
-                    fetchAndUpdateBarcode()
+                    let startDate = "2025-04-01"
+                    let endDate = "2025-08-30"
+                    Task {
+                        print("時間割情報の取得開始")
+                        // FirebaseAuth 経由で学籍番号・パスワードを自動取得する場合、
+                        // studentNumber/password の手動設定は不要です
+                        await fetcher.fetchAndUpload(
+                            quarter: "1,2",
+                            startDate: startDate,
+                            endDate: endDate
+                        )
+                        //await fetcher.loadFromFirestore(year: selectedYear, quarter: selectedQuarter)
+                        // バーコード更新処理
+                        print("バーコードの取得開始")
+                        fetchAndUpdateBarcode()
+                    }
                 }
                 
                 NavigationLink(destination: TermsView()) {
