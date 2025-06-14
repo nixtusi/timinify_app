@@ -111,6 +111,9 @@ class TaskFetcher: ObservableObject {
                     self.lastUpdated = Date()
                     UserDefaults.standard.set(self.lastUpdated, forKey: self.lastUpdatedKey)
                     self.isLoading = false
+                    
+                    print("✅ 課題取得成功（\(decodedTasks.count)件）")
+                    print("🕒 最終更新: \(self.lastUpdated!)")
                 } catch {
                     if retryCount > 0 {
                         self.fetchTasksFromAPI(retryCount: retryCount - 1)
@@ -119,6 +122,10 @@ class TaskFetcher: ObservableObject {
                         self.isLoading = false
                         let responseStr = String(data: data, encoding: .utf8) ?? "不明なデータ"
                         self.errorMessage = "デコード失敗: \(responseStr)"
+                    }
+                    
+                    if let httpResponse = response as? HTTPURLResponse {
+                        print("🌐 ステータスコード: \(httpResponse.statusCode)")
                     }
                 }
             }

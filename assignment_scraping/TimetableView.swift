@@ -44,45 +44,59 @@ struct TimetableView: View {
     
     private var controlPanel: some View {
         HStack {
-            Picker("年度", selection: $selectedYear) {
+            // 年度ピッカー
+            Picker(selection: $selectedYear, label:
+                Text("\(String(selectedYear))年度")
+                    .font(.body.weight(.bold))
+                    .foregroundColor(.gray)
+            ) {
                 ForEach(2023...2026, id: \.self) { year in
-                    Text("\(year)年度").tag(year)
+                    Text("\(String(year))年度").tag(year)
                 }
             }
             .pickerStyle(MenuPickerStyle())
-            
-            Picker("クォーター", selection: $selectedQuarter) {
+            .tint(.gray)
+
+            // クォーターピッカー
+            Picker(selection: $selectedQuarter, label:
+                Text("\(selectedQuarter)Q")
+                    .font(.body.weight(.bold))
+                    .foregroundColor(.gray)
+            ) {
                 ForEach(1...4, id: \.self) { q in
                     Text("\(q)Q").tag(q)
                 }
             }
             .pickerStyle(MenuPickerStyle())
-            
-            Spacer() //右に余白を押し出して左寄せに
+            .tint(.gray)
+
+            Spacer()
         }
-        .padding(.horizontal)            // 左右は維持
-        .padding(.vertical, 4)           // ✅ 上下の余白を狭く（デフォルト16）
+        .padding(.horizontal)
+        .padding(.vertical, 4)
     }
     
     private var contentBody: some View {
-        if fetcher.isLoading {
-            AnyView(
-                ProgressView("読み込み中…")
-                    .padding()
-            )
-        } else if let error = fetcher.errorMessage {
-            AnyView(
-                Text(error)
-                    .foregroundColor(.red)
-                    .multilineTextAlignment(.center)
-                    .padding()
-            )
-        } else {
-            AnyView(
-                timetableGrid
-                //  .padding(.horizontal)
-            )
-        }
+//        if fetcher.isLoading {
+//            AnyView(
+//                ProgressView("読み込み中…")
+//                    .padding()
+//            )
+//        } else if let error = fetcher.errorMessage {
+//            AnyView(
+//                Text(error)
+//                    .foregroundColor(.red)
+//                    .multilineTextAlignment(.center)
+//                    .padding()
+//            )
+//        } else {
+//            AnyView(
+//                timetableGrid
+//                //  .padding(.horizontal)
+//            )
+//        }
+        
+        timetableGrid
     }
     
     private var timetableGrid: some View {
@@ -93,18 +107,50 @@ struct TimetableView: View {
             let timeColW: CGFloat = 35
             let headerH: CGFloat = 40
             let verticalPadding: CGFloat = 44
-            let horizontalMargin: CGFloat = 15 // ✅ 右側に追加したい余白
 
-            let colW = (totalW - timeColW - horizontalMargin) / CGFloat(days.count)
-            let rowH = (totalH - headerH - verticalPadding) / CGFloat(periods.count)
+            let spacingPerSide: CGFloat = 2.0
+            let fridayTrailing: CGFloat = 6.0
+
+            // ✅ spacing: 各タイルの左右 (2px×2) × 5日 + 金曜追加px
+            let totalColSpacing = spacingPerSide * 2 * CGFloat(days.count) + (fridayTrailing - spacingPerSide)
+            let colW = (totalW - timeColW - totalColSpacing) / CGFloat(days.count)
+
+            let rowSpacing = spacingPerSide * 2
+            let totalRowSpacing = rowSpacing * CGFloat(periods.count - 1)
+            let rowH = (totalH - headerH - verticalPadding - totalRowSpacing) / CGFloat(periods.count)
+
+            let todayWeekdaySymbol = weekdaySymbolFromToday()
 
             VStack(spacing: 0) {
                 HStack(spacing: 0) {
                     Color.clear.frame(width: timeColW, height: headerH)
+                    
                     ForEach(days, id: \.self) { day in
-                        Text(day)
-                            .font(.callout).bold()
-                            .frame(width: colW, height: headerH)
+                        let isFriday = day == days.last
+
+                        VStack {
+                            Spacer()
+                            ZStack {
+                                if day == todayWeekdaySymbol {
+                                    Circle()
+                                        .fill(Color.red)
+                                        .frame(width: 26, height: 26)
+                                    Text(day)
+                                        .font(.callout)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.white)
+                                } else {
+                                    Text(day)
+                                        .font(.callout)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.primary)
+                                }
+                            }
+                            Spacer()
+                        }
+                        .frame(width: colW, height: headerH)
+                        .padding(.leading, spacingPerSide)
+                        .padding(.trailing, isFriday ? fridayTrailing : spacingPerSide) // ✅ タイルと同じようにパディング調整
                     }
                 }
 
@@ -114,18 +160,21 @@ struct TimetableView: View {
                             .frame(width: timeColW, height: rowH)
 
                         ForEach(days, id: \.self) { day in
+                            let isFriday = day == days.last
                             let course = fetcher.timetableItems.first {
                                 $0.day == day && $0.period == period && $0.quarter == selectedQuarter
                             }
+
                             TimetableCell(course: course)
                                 .frame(width: colW, height: rowH)
-                                .padding(1)
+                                .padding(.vertical, spacingPerSide)
+                                .padding(.leading, spacingPerSide)
+                                .padding(.trailing, isFriday ? fridayTrailing : spacingPerSide) // ✅ 金曜のみ4px
                         }
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading) // ✅ 左寄せ
-            .padding(.trailing, horizontalMargin) // ✅ 右に余白を加える
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
     
@@ -156,6 +205,7 @@ struct TimetableView: View {
     
     struct TimetableCell: View {
         let course: TimetableItem?
+        var isLoading: Bool = false
         
         var body: some View {
             ZStack {
@@ -197,11 +247,22 @@ struct TimetableView: View {
                     Color.clear
                 }
             }
-            .padding(1.7)
+            //.padding(1.0)
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
                     .stroke(Color.gray.opacity(0.3), lineWidth: 1)
             )
         }
+    }
+    
+    /// 今日の曜日（"月", "火", …）を返す
+    private func weekdaySymbolFromToday() -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        let weekdaySymbols = formatter.shortWeekdaySymbols! // ["日", "月", "火", …]
+
+        let weekday = Calendar.current.component(.weekday, from: Date())
+        // .weekday は 1(日)〜7(土) → 月=2
+        return weekdaySymbols[weekday - 1]
     }
 }
