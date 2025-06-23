@@ -10,11 +10,15 @@ import Foundation
 
 struct TaskTimelineProvider: TimelineProvider {
     func placeholder(in context: Context) -> TaskEntry {
-        TaskEntry(date: Date(), tasks: [])
+        TaskEntry(date: Date(), tasks: [], lastUpdated: nil) //修正
     }
 
     func getSnapshot(in context: Context, completion: @escaping (TaskEntry) -> Void) {
-        let entry = TaskEntry(date: Date(), tasks: loadTasks())
+        let tasks = loadTasks()
+        let sharedDefaults = UserDefaults(suiteName: "group.com.yuta.beefapp")
+        let updatedTime = sharedDefaults?.object(forKey: "widgetLastUpdated") as? Date
+
+        let entry = TaskEntry(date: Date(), tasks: tasks, lastUpdated: updatedTime)
         completion(entry)
     }
 
@@ -22,6 +26,8 @@ struct TaskTimelineProvider: TimelineProvider {
         let currentDate = Date()
         let nextUpdate = Calendar.current.date(byAdding: .minute, value: 10, to: currentDate)!
         let tasks = loadTasks() // ← 課題情報を読み込み
+        let sharedDefaults = UserDefaults(suiteName: "group.com.yuta.beefapp")
+        let updatedTime = sharedDefaults?.object(forKey: "widgetLastUpdated") as? Date
 
         // ✅ 自動更新時に課題情報だけを再保存
         if let defaults = UserDefaults(suiteName: "group.com.yuta.beefapp") {
@@ -35,8 +41,10 @@ struct TaskTimelineProvider: TimelineProvider {
             print("❌ Widget: AppGroupのUserDefaults取得失敗")
         }
 
-        let entry = TaskEntry(date: currentDate, tasks: tasks)
+        //let entry = TaskEntry(date: currentDate, tasks: tasks)
+        let entry = TaskEntry(date: currentDate, tasks: tasks, lastUpdated: updatedTime)
         let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
+        
         completion(timeline)
     }
 

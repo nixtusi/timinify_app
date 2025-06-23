@@ -96,7 +96,7 @@ class TaskFetcher: ObservableObject {
                 }
 
                 do {
-                    // ✅ "tasks" キーでネストされているので構造体で包む
+                    // "tasks" キーでネストされているので構造体で包む
                     struct ResponseWrapper: Decodable {
                         let tasks: [BeefTask]
                     }
@@ -108,9 +108,12 @@ class TaskFetcher: ObservableObject {
                     self.saveTasksToLocal(decodedTasks)
                     NotificationManager.shared.scheduleNotifications(for: decodedTasks)
                     self.success = true
+                    self.isLoading = false
+                    
+                    //課題取得に成功したときだけ最終更新時間を変更
                     self.lastUpdated = Date()
                     UserDefaults.standard.set(self.lastUpdated, forKey: self.lastUpdatedKey)
-                    self.isLoading = false
+                    UserDefaults(suiteName: "group.com.yuta.beefapp")?.set(self.lastUpdated, forKey: "widgetLastUpdated")
                     
                     print("✅ 課題取得成功（\(decodedTasks.count)件）")
                     print("🕒 最終更新: \(self.lastUpdated!)")

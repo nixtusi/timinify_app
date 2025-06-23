@@ -134,6 +134,9 @@ struct InitialSetupView: View {
             .sheet(isPresented: $showingTerms) {
                 TermsView()
             }
+            .onTapGesture {
+                UIApplication.shared.endEditing() //画面外をタップでキーボードを閉じる
+            }
         }
     }
 

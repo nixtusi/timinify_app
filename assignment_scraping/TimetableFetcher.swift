@@ -109,6 +109,12 @@ class TimetableFetcher: ObservableObject {
         }
 
         isLoading = false
+        
+        if let errorMessage = errorMessage {
+            print("❌ 時間割取得エラー: \(errorMessage)")
+        } else {
+            print("✅ 時間割取得成功: \(timetableItems.count)件取得")
+        }
     }
 
     private func requestUribonet(

@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var showingLogoutAlert = false
     @State private var resetMessage: String?
     @State private var showingResetAlert = false
+    
     @State private var barcodeImage: UIImage? = nil
     @State private var isFetchingBarcode = false
 
@@ -50,23 +51,8 @@ struct SettingsView: View {
             }
 
             Section(header: Text("その他")) {
-                Button("データを更新する") {
-                    let startDate = "2025-04-01"
-                    let endDate = "2025-08-30"
-                    Task {
-                        print("時間割情報の取得開始")
-                        // FirebaseAuth 経由で学籍番号・パスワードを自動取得する場合、
-                        // studentNumber/password の手動設定は不要です
-                        await fetcher.fetchAndUpload(
-                            quarter: "1,2",
-                            startDate: startDate,
-                            endDate: endDate
-                        )
-                        //await fetcher.loadFromFirestore(year: selectedYear, quarter: selectedQuarter)
-                        // バーコード更新処理
-                        print("バーコードの取得開始")
-                        fetchAndUpdateBarcode()
-                    }
+                NavigationLink(destination: DataUpdateView()) {
+                    Text("データを更新する")
                 }
                 
                 NavigationLink(destination: TermsView()) {
@@ -83,6 +69,7 @@ struct SettingsView: View {
         .onAppear {
             loadSavedBarcodeImage()
         }
+        
         .alert("パスワード再設定", isPresented: $showingResetAlert, presenting: resetMessage) { _ in
             Button("OK", role: .cancel) {}
         } message: { msg in
@@ -105,19 +92,15 @@ struct SettingsView: View {
             showingResetAlert = true
         }
     }
-
-    // ✅ BarcodeManager.swift に処理を委譲
-    private func fetchAndUpdateBarcode() {
+    
+    private func loadSavedBarcodeImage() {
         isFetchingBarcode = true
-        BarcodeManager.shared.fetchAndSaveBarcode { image in
+        DispatchQueue.global().async {
+            let image = BarcodeManager.shared.loadSavedBarcodeImage()
             DispatchQueue.main.async {
                 self.barcodeImage = image
                 self.isFetchingBarcode = false
             }
         }
-    }
-
-    private func loadSavedBarcodeImage() {
-        self.barcodeImage = BarcodeManager.shared.loadSavedBarcodeImage()
     }
 }

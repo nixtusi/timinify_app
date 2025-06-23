@@ -18,4 +18,5 @@ struct SharedTask: Identifiable, Codable {
 struct TaskEntry: TimelineEntry {
     let date: Date
     let tasks: [SharedTask]
+    let lastUpdated: Date?
 }

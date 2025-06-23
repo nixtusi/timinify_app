@@ -75,7 +75,11 @@ struct TaskWidgetEntryView: View {
                     .fontWeight(.bold)
                     .foregroundColor(Color(red: 0.30, green: 0.78, blue: 0.60))
                 
-                Text("更新 \(formattedTime(from: entry.date))")
+//                Text("更新 \(formattedTime(from: entry.date))")
+//                    .font(.caption2)
+//                    .foregroundColor(.gray)
+                
+                Text("更新 \(formattedTime(from: entry.lastUpdated ?? entry.date))")
                     .font(.caption2)
                     .foregroundColor(.gray)
 

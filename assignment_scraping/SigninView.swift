@@ -98,6 +98,9 @@ struct SigninView: View {
             .padding()
             .navigationBarHidden(true)
             .navigationBarBackButtonHidden(true)
+            .onTapGesture {
+                UIApplication.shared.endEditing() //キーボード外をタップでキーボードを閉じる
+            }
         }
     }
 
