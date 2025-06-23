@@ -4,6 +4,12 @@
 //
 //  Created by Yuta Nisimatsu on 2025/06/11.
 //
+//
+//  SettingsView.swift
+//  assignment_scraping
+//
+//  Created by Yuta Nisimatsu on 2025/06/11.
+//
 
 import SwiftUI
 import FirebaseAuth
@@ -25,51 +31,71 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        Form {
-            Section(header: Text("アカウント")) {
-                Text(studentNumber)
-                    .font(.body)
-                    .foregroundColor(.primary)
-            }
-            
-            Section(header: Text("図書館入館証")) {
-                if isFetchingBarcode {
-                    ProgressView()
-                } else if let image = barcodeImage {
-                    HStack {
-                        Spacer()
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(height: 100)
-                        Spacer()
-                    }
-                } else {
-                    Text("バーコード未取得")
-                        .foregroundColor(.secondary)
-                }
-            }
+        ZStack {
+            // 🔽 ダークモードに対応した背景色に変更
+            Color(UIColor.systemGroupedBackground)
+                .ignoresSafeArea()
 
-            Section(header: Text("その他")) {
-                NavigationLink(destination: DataUpdateView()) {
-                    Text("データを更新する")
+            Form {
+                Section(header: Text("アカウント")) {
+                    Text(studentNumber)
+                        .font(.body)
+                        .foregroundColor(.primary)
                 }
-                
-                NavigationLink(destination: TermsView()) {
-                    Text("利用規約を見る")
+
+                Section(header: Text("図書館入館証")) {
+                    ZStack {
+                        Color.white // 🔽 常に白背景に固定
+                            .cornerRadius(12)
+                            .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+                        
+                        VStack {
+                            if isFetchingBarcode {
+                                ProgressView()
+                                    .padding()
+                            } else if let image = barcodeImage {
+                                HStack {
+                                    Spacer()
+                                    Image(uiImage: image)
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(height: 100)
+                                    Spacer()
+                                }
+                                .padding()
+                            } else {
+                                Text("バーコード未取得")
+                                    .foregroundColor(.secondary)
+                                    .padding()
+                            }
+                        }
+                    }
+                    .listRowInsets(EdgeInsets()) // 🔽 セクション外の余白を詰める
                 }
-                
-                Button(role: .destructive) {
-                    showingLogoutAlert = true
-                } label: {
-                    Text("ログアウト")
+
+                Section(header: Text("その他")) {
+                    NavigationLink(destination: DataUpdateView()) {
+                        Text("データを更新する")
+                            .foregroundColor(.primary) // 🔽 明示的に指定（必要に応じて）
+                    }
+
+                    NavigationLink(destination: TermsView()) {
+                        Text("利用規約を見る")
+                            .foregroundColor(.primary)
+                    }
+
+                    Button(role: .destructive) {
+                        showingLogoutAlert = true
+                    } label: {
+                        Text("ログアウト")
+                    }
                 }
             }
+            .background(Color.clear) // 🔽 Formの背景を透明にして親ビューに従わせる
         }
         .onAppear {
             loadSavedBarcodeImage()
         }
-        
         .alert("パスワード再設定", isPresented: $showingResetAlert, presenting: resetMessage) { _ in
             Button("OK", role: .cancel) {}
         } message: { msg in
@@ -92,7 +118,7 @@ struct SettingsView: View {
             showingResetAlert = true
         }
     }
-    
+
     private func loadSavedBarcodeImage() {
         isFetchingBarcode = true
         DispatchQueue.global().async {

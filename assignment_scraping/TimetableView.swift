@@ -227,11 +227,13 @@ struct TimetableView: View {
                         
                         Text(c.room ?? "")
                             .font(.caption2)
-                            .foregroundColor(.black)
+                            //.foregroundColor(.black)
+                            .foregroundColor(.primary)
                             .frame(maxWidth: .infinity, minHeight: 14, maxHeight: 14)
                             .background(
                                 RoundedRectangle(cornerRadius: 3)
-                                    .fill(Color.white)
+                                    //.fill(Color.white)
+                                    .fill(Color(UIColor.systemBackground))
                             )
                             .padding(.horizontal, 1.7)
                             .padding(.bottom, 2.1)
@@ -251,6 +253,7 @@ struct TimetableView: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
                     .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                    //.stroke(Color.primary.opacity(0.3), lineWidth: 1)
             )
         }
     }

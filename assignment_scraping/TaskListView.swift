@@ -39,7 +39,8 @@ struct TaskListView: View {
                                 }
                             }
                             .padding()
-                            .background(Color.white)
+                            //.background(Color.white)
+                            .background(Color(.systemBackground)) // ← 自動で明暗に応じて白/黒を切り替える
                             .cornerRadius(12)
                             .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
                             .padding(.horizontal)
