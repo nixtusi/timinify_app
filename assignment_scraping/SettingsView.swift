@@ -4,12 +4,6 @@
 //
 //  Created by Yuta Nisimatsu on 2025/06/11.
 //
-//
-//  SettingsView.swift
-//  assignment_scraping
-//
-//  Created by Yuta Nisimatsu on 2025/06/11.
-//
 
 import SwiftUI
 import FirebaseAuth

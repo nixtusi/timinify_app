@@ -19,7 +19,7 @@ struct MainTabView: View {
             TabView {
                 NavigationView {
                     TimetableView()
-                        .navigationTitle("時間割")
+                        //.navigationTitle("時間割")
                 }
                 .tabItem {
                     Label("時間割", systemImage: "calendar")

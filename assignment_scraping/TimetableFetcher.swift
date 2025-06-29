@@ -12,7 +12,7 @@ import FirebaseFirestore
 
 // MARK: - Models
 
-struct TimetableItem: Codable, Identifiable {
+struct TimetableItem: Codable, Identifiable, Hashable {
     var id: String { code + day + String(period) }
     let code: String
     let day: String
@@ -231,11 +231,53 @@ class TimetableFetcher: ObservableObject {
 
         do {
             let snapshot = try await path.getDocuments()
-            timetableItems = snapshot.documents.compactMap { doc in
-                var item = try? doc.data(as: TimetableItem.self)
-                item?.quarter = quarter  // ✅ ここでquarterを手動でセット
-                return item
+            var items: [TimetableItem] = []
+            
+            
+            for doc in snapshot.documents {
+                var item = try doc.data(as: TimetableItem.self)
+                item.quarter = quarter
+
+                if item.room == nil || item.room == "" {
+                    let classRef = firestore
+                        .collection("class")
+                        .document(String(year))
+                        .collection("Q\(quarter)")
+                        .document(item.code)
+                    let classDoc = try await classRef.getDocument()
+
+                    if let data = classDoc.data(), let classRoom = data["room"] as? String {
+                        // ✅ roomだけ差し替える（item再生成せず直接書き換え）
+                        item = TimetableItem(
+                            code: item.code,
+                            day: item.day,
+                            period: item.period,
+                            teacher: item.teacher,
+                            title: item.title,
+                            room: classRoom,
+                            quarter: quarter
+                        )
+                    } else {
+                        // ✅ Firestoreになければ、自分の情報をclassに登録（初回補完用）
+                        if let userRoom = item.room, !userRoom.isEmpty {
+                            try await classRef.setData([
+                                "room": userRoom,
+                                "teacher": item.teacher,
+                                "title": item.title,
+                                "code": item.code
+                            ])
+                            print("✅ classに新規登録: \(item.code)")
+                        }
+                    }
+                }
+
+                // ✅ どんな状態でも item を追加
+                items.append(item)
             }
+
+            timetableItems = items
+            
+            
         } catch {
             errorMessage = "Firestore 読み込み失敗: \(error.localizedDescription)"
         }

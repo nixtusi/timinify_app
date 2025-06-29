@@ -14,30 +14,41 @@ struct TimetableView: View {
     @State private var selectedYear = 2025
     @State private var selectedQuarter = 2
     
+    @State private var selectedCourse: TimetableItem?
+    @State private var selectedDay: String = ""
+    @State private var selectedPeriod: Int = 0
+    
     private let days = ["月", "火", "水", "木", "金"]
     private let periods = [1, 2, 3, 4, 5]
     
     var body: some View {
-        ZStack {
-            Color(.systemGroupedBackground)
-                .ignoresSafeArea()
-            
+        NavigationStack {
             VStack(spacing: 2) {
                 controlPanel
                 contentBody
             }
-        }
-        .task {
-            await fetcher.loadFromFirestore(year: selectedYear, quarter: selectedQuarter)
-        }
-        .onChange(of: selectedYear) { _ in
-            Task {
+            .background(Color(.systemGroupedBackground))
+            .navigationDestination(item: $selectedCourse) { course in
+                LectureDetailView(
+                    lectureCode: course.code,
+                    dayPeriod: "\(course.day)\(course.period)",
+                    year: String(selectedYear),
+                    quarter: "Q\(selectedQuarter)"
+                )
+            }
+            .navigationTitle("時間割")
+            .task {
                 await fetcher.loadFromFirestore(year: selectedYear, quarter: selectedQuarter)
             }
-        }
-        .onChange(of: selectedQuarter) { _ in
-            Task {
-                await fetcher.loadFromFirestore(year: selectedYear, quarter: selectedQuarter)
+            .onChange(of: selectedYear) { _ in
+                Task {
+                    await fetcher.loadFromFirestore(year: selectedYear, quarter: selectedQuarter)
+                }
+            }
+            .onChange(of: selectedQuarter) { _ in
+                Task {
+                    await fetcher.loadFromFirestore(year: selectedYear, quarter: selectedQuarter)
+                }
             }
         }
     }
@@ -170,6 +181,13 @@ struct TimetableView: View {
                                 .padding(.vertical, spacingPerSide)
                                 .padding(.leading, spacingPerSide)
                                 .padding(.trailing, isFriday ? fridayTrailing : spacingPerSide) // ✅ 金曜のみ4px
+                                .onTapGesture { //時間割詳細画面へ移動
+                                    if let c = course {
+                                        selectedCourse = c
+                                        selectedDay = day
+                                        selectedPeriod = period
+                                    }
+                                }
                         }
                     }
                 }
@@ -190,6 +208,7 @@ struct TimetableView: View {
                     .multilineTextAlignment(.center)
             }
         }
+        
         
         private func timeForPeriod(_ p: Int) -> String {
             switch p {
@@ -269,3 +288,5 @@ struct TimetableView: View {
         return weekdaySymbols[weekday - 1]
     }
 }
+
+

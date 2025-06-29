@@ -1,0 +1,159 @@
+//
+//  LectureDetailViewModel.swift
+//  assignment_scraping
+//
+//  Created by Yuta Nisimatsu on 2025/06/29.
+//
+
+import Foundation
+import FirebaseFirestore
+import SwiftUI
+
+class LectureDetailViewModel: ObservableObject {
+    @Published var title: String = ""
+    @Published var teacher: String = ""
+    @Published var room: String = ""
+    @Published var color: Color = .blue
+    @Published var credits: String = ""
+    @Published var evaluation: String = ""
+    @Published var references: String = ""
+    @Published var evaluationCriteria: String = "" // ← 成績評価基準用
+
+    private var db = Firestore.firestore()
+    
+    @Published var syllabus: Syllabus? = nil
+
+    /// Firestoreからデータを取得し、必要なら/classに授業を登録
+    func fetchLectureDetails(studentId: String, admissionYear: String, year: String, quarter: String, day: String, period: Int, lectureCode: String) async {
+        do {
+            // 🔹 `/Timetable/...` から授業情報を取得
+            let timetablePath = "Timetable/\(admissionYear)/\(studentId)/\(year)/Q\(quarter)/\(lectureCode)\(day)\(period)"
+            let timetableRef = db.document(timetablePath)
+            let timetableData = try await timetableRef.getDocument().data()
+            
+            self.title = timetableData?["title"] as? String ?? ""
+            self.teacher = timetableData?["teacher"] as? String ?? ""
+            self.room = timetableData?["room"] as? String ?? ""
+            
+            if let colorHex = timetableData?["color"] as? String {
+                self.color = Color(hex: colorHex)
+            }
+
+            // 🔹 `/class/...` に教室データがなければ登録、あれば補完
+            let classPath = "class/\(year)/Q\(quarter)/\(lectureCode)"
+            let classRef = db.document(classPath)
+            let classDoc = try await classRef.getDocument()
+
+            if let classData = classDoc.data() {
+                if self.room.isEmpty {
+                    self.room = classData["room"] as? String ?? ""
+                }
+            } else {
+                // Firestoreに存在しない → 登録
+                try await classRef.setData([
+                    "room": self.room,
+                    "title": self.title,
+                    "teacher": self.teacher,
+                    "createdAt": FieldValue.serverTimestamp()
+                ])
+            }
+
+            // 🔹 `/NewSyllabus/...` からシラバス概要を取得
+            let syllabusRef = db.document("NewSyllabus/\(year)/第\(quarter)クォーター/\(day)/lectures/\(lectureCode)")
+            let syllabusDoc = try await syllabusRef.getDocument()
+
+            if let sData = syllabusDoc.data() {
+                self.credits = sData["単位数"] as? String ?? ""
+                self.evaluation = sData["成績評価基準"] as? String ?? ""
+                self.references = sData["参考書・参考資料等"] as? String ?? ""
+            }
+
+        } catch {
+            print("❌ データ取得エラー: \(error)")
+        }
+    }
+    
+    // 教室情報を更新してFirestoreに保存する
+    func updateRoomInfo(year: String, quarter: String, code: String, newRoom: String) async {
+        let docRef = db.collection("class").document(year)
+            .collection("Q\(quarter)").document(code)
+
+        do {
+            try await docRef.setData(["room": newRoom], merge: true)
+            print("✅ 教室情報を更新: \(newRoom)")
+        } catch {
+            print("❌ 教室情報の更新エラー: \(error)")
+        }
+    }
+    
+    @MainActor
+    func fetchSyllabus(year: String, quarter: String, day: String, code: String) async {
+        let db = Firestore.firestore()
+        
+        // 🔽 クォーターごとの探索順を定義
+        let quarterSearchOrder: [String: [String]] = [
+            "第1クォーター": ["第1クォーター"],
+            "第2クォーター": ["第2クォーター", "第1クォーター"],
+            "第3クォーター": ["第3クォーター"],
+            "第4クォーター": ["第4クォーター", "第3クォーター"]
+        ]
+        
+        guard let quartersToTry = quarterSearchOrder[quarter] else {
+            print("❌ 無効なクォーター: \(quarter)")
+            return
+        }
+        
+        for q in quartersToTry {
+            let path = "NewSyllabus/\(year)/\(q)/\(day)/lectures/\(code)"
+            print("📘 Firestoreアクセスパス: \(path)")
+            
+            let docRef = db.collection("NewSyllabus")
+                .document(year)
+                .collection(q)
+                .document(day)
+                .collection("lectures")
+                .document(code)
+            
+            do {
+                let snapshot = try await docRef.getDocument()
+                
+                if snapshot.exists {
+                    guard let data = snapshot.data() else {
+                        print("⚠️ ドキュメントはあるがデータが空（\(q)）")
+                        return
+                    }
+                    
+                    self.credits = data["単位数"] as? String ?? ""
+                    self.evaluation = data["成績評価基準"] as? String ?? ""
+                    self.references = data["参考書・参考資料等"] as? String ?? ""
+                    self.evaluationCriteria = data["成績評価基準"] as? String ?? "" // ← ここで評価基準を保存
+
+                    self.syllabus = Syllabus(
+                        title: data["開講科目名"] as? String ?? "",
+                        teacher: data["担当"] as? String ?? "",
+                        credits: self.credits,
+                        evaluation: self.evaluation,
+                        textbooks: data["教科書"] as? String,
+                        summary: data["授業の概要と計画"] as? String,
+                        goals: data["授業の到達目標"] as? String,
+                        language: data["授業における使用言語"] as? String,
+                        method: data["授業形態"] as? String,
+                        schedule: data["開講期間"] as? String,
+                        remarks: data["履修上の注意"] as? String,
+                        contact: data["オフィスアワー・連絡先"] as? String,
+                        message: data["学生へのメッセージ"] as? String
+                    )
+                    
+                    print("✅ シラバス情報を取得しました（\(q)）")
+                    return
+                } else {
+                    print("⚠️ ドキュメントが存在しません（\(q)）")
+                }
+            } catch {
+                print("❌ Firestore取得エラー（\(q)）: \(error.localizedDescription)")
+            }
+        }
+        
+        print("❌ いずれのクォーターにもシラバスが存在しません")
+    }
+}
