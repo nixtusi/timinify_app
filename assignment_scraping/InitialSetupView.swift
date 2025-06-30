@@ -57,7 +57,7 @@ struct InitialSetupView: View {
                             .fontWeight(.bold)
                             .underline()
                     }
-                    .buttonStyle(PlainButtonStyle()) // ✅ ボタンっぽさを消す
+                    .buttonStyle(PlainButtonStyle()) //ボタンっぽさを消す
 
                     Text("に同意のうえ、ご利用ください。")
                         .foregroundColor(.primary)
@@ -98,7 +98,7 @@ struct InitialSetupView: View {
 
                 Spacer()
 
-                // ✅ ログインリンク追加部分
+                //ログインリンク追加部分
                 HStack {
                     Text("既にアカウントをお持ちの場合")
                         .font(.footnote)
@@ -153,7 +153,7 @@ struct InitialSetupView: View {
                     self.message = "認証メール送信エラー: \(error.localizedDescription)"
                 } else {
                     self.message = ""
-                    self.showingAlert = true // ✅ アラートを表示
+                    self.showingAlert = true //アラートを表示
                 }
             }
         }

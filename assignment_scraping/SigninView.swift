@@ -17,7 +17,7 @@ struct SigninView: View {
     @State private var errorMessage: String?
     @State private var isLoggingIn = false
     
-    @State private var showInitialSetupView = false // ← 画面遷移トリガー
+    @State private var showInitialSetupView = false //画面遷移トリガー
 
     var body: some View {
         NavigationView {
@@ -90,7 +90,7 @@ struct SigninView: View {
                 }
                 .padding(.bottom)
 
-                // ✅ .fullScreenCover は VStack全体に適用
+                //.fullScreenCover は VStack全体に適用
                 .fullScreenCover(isPresented: $showInitialSetupView) {
                     InitialSetupView(onComplete: onComplete)
                 }
@@ -128,7 +128,7 @@ struct SigninView: View {
                     if let reloadError = reloadError {
                         errorMessage = "再取得に失敗しました: \(reloadError.localizedDescription)"
                     } else if user.isEmailVerified {
-                        // ✅ 保存と状態更新
+                        //保存と状態更新
                         UserDefaults.standard.set(studentID, forKey: "studentNumber")
                         UserDefaults.standard.set(password, forKey: "loginPassword")
                         appState.isLoggedIn = true

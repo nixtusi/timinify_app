@@ -6,7 +6,6 @@
 //
 //
 
-
 import SwiftUI
 
 struct MainTabView: View {
@@ -19,7 +18,6 @@ struct MainTabView: View {
             TabView {
                 NavigationView {
                     TimetableView()
-                        //.navigationTitle("時間割")
                 }
                 .tabItem {
                     Label("時間割", systemImage: "calendar")
@@ -42,7 +40,6 @@ struct MainTabView: View {
                 }
             }
         }
-        // ✅ VStackに付けることで画面全体に作用
         .onAppear {
             checkServerTime()
             print("🧾 学籍番号（Firebase Auth）: \(appState.studentNumber)")

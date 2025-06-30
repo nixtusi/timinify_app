@@ -39,8 +39,7 @@ struct TaskListView: View {
                                 }
                             }
                             .padding()
-                            //.background(Color.white)
-                            .background(Color(.systemBackground)) // ← 自動で明暗に応じて白/黒を切り替える
+                            .background(Color(.systemBackground))
                             .cornerRadius(12)
                             .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
                             .padding(.horizontal)
@@ -73,19 +72,7 @@ struct TaskListView: View {
                 .refreshable {
                     fetcher.fetchTasksFromAPI()
                 }
-                //Divider() tabbarとの境界線
             }
-
-//            if fetcher.isLoading {
-//                ProgressView()
-//                    .scaleEffect(1.8)
-//                    .progressViewStyle(CircularProgressViewStyle())
-//                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-//            } else if let error = fetcher.errorMessage {
-//                Text("⚠️ \(error)")
-//                    .foregroundColor(.red)
-//                    .padding()
-//            }
         }
         .onAppear {
             fetcher.fetchTasksFromAPI()
@@ -96,22 +83,6 @@ struct TaskListView: View {
                 WidgetCenter.shared.reloadAllTimelines()
             }
         }
-        
-//        .toolbar {
-//            ToolbarItem(placement: .principal) {
-//                HStack(alignment: .bottom, spacing: 6) {
-//                    Text("課題")
-//                        .font(.system(size: 17, weight: .semibold)) // ← .headline だと少し違う
-//                        .foregroundColor(.primary)
-////                    if let updated = fetcher.lastUpdated {
-////                        Text("(\(formattedDate(updated)))")
-////                            .font(.subheadline)
-////                            .foregroundColor(.gray)
-////                    }
-//                    Spacer() // ← 左寄せに必要
-//                }
-//            }
-//        }
     }
 }
 

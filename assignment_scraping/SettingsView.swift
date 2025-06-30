@@ -26,7 +26,7 @@ struct SettingsView: View {
 
     var body: some View {
         ZStack {
-            // 🔽 ダークモードに対応した背景色に変更
+            //ダークモードに対応した背景色に変更
             Color(UIColor.systemGroupedBackground)
                 .ignoresSafeArea()
 
@@ -39,7 +39,7 @@ struct SettingsView: View {
 
                 Section(header: Text("図書館入館証")) {
                     ZStack {
-                        Color.white // 🔽 常に白背景に固定
+                        Color.white //ダークモード時でも白背景に固定
                             .cornerRadius(12)
                             .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
                         
@@ -64,13 +64,13 @@ struct SettingsView: View {
                             }
                         }
                     }
-                    .listRowInsets(EdgeInsets()) // 🔽 セクション外の余白を詰める
+                    .listRowInsets(EdgeInsets()) //セクション外の余白を詰める
                 }
 
                 Section(header: Text("その他")) {
                     NavigationLink(destination: DataUpdateView()) {
                         Text("データを更新する")
-                            .foregroundColor(.primary) // 🔽 明示的に指定（必要に応じて）
+                            .foregroundColor(.primary) //明示的に指定（必要に応じて）
                     }
 
                     NavigationLink(destination: TermsView()) {
@@ -85,7 +85,7 @@ struct SettingsView: View {
                     }
                 }
             }
-            .background(Color.clear) // 🔽 Formの背景を透明にして親ビューに従わせる
+            .background(Color.clear) //Formの背景を透明にして親ビューに従わせる
         }
         .onAppear {
             loadSavedBarcodeImage()

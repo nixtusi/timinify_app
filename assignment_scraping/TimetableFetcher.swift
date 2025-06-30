@@ -247,7 +247,7 @@ class TimetableFetcher: ObservableObject {
                     let classDoc = try await classRef.getDocument()
 
                     if let data = classDoc.data(), let classRoom = data["room"] as? String {
-                        // ✅ roomだけ差し替える（item再生成せず直接書き換え）
+                        //roomだけ差し替える（item再生成せず直接書き換え）
                         item = TimetableItem(
                             code: item.code,
                             day: item.day,
@@ -258,7 +258,7 @@ class TimetableFetcher: ObservableObject {
                             quarter: quarter
                         )
                     } else {
-                        // ✅ Firestoreになければ、自分の情報をclassに登録（初回補完用）
+                        //Firestoreになければ、自分の情報をclassに登録（初回補完用）
                         if let userRoom = item.room, !userRoom.isEmpty {
                             try await classRef.setData([
                                 "room": userRoom,
@@ -271,7 +271,7 @@ class TimetableFetcher: ObservableObject {
                     }
                 }
 
-                // ✅ どんな状態でも item を追加
+                //どんな状態でも item を追加
                 items.append(item)
             }
 

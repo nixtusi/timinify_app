@@ -33,5 +33,4 @@ class AppState: ObservableObject {
             print("ログアウトエラー: \(error.localizedDescription)")
         }
     }
-    
 }

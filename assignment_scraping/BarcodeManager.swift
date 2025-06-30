@@ -13,10 +13,10 @@ class BarcodeManager {
 
     private let apiURL = URL(string: "https://library.timinify.com/library")!
     private let barcodeImageFileName = "barcode.png"
-
+    
     private init() {}
 
-    // ✅ 呼び出し元用：バーコード取得＆保存（Completionで画像を返す）
+    //呼び出し元用：バーコード取得＆保存（Completionで画像を返す）
     func fetchAndSaveBarcode(completion: @escaping (UIImage?) -> Void) {
         guard let studentNumber = UserDefaults.standard.string(forKey: "studentNumber"),
               let password = UserDefaults.standard.string(forKey: "loginPassword") else {
@@ -63,7 +63,7 @@ class BarcodeManager {
         }.resume()
     }
 
-    // ✅ 画像取得
+    //画像取得
     private func downloadImage(from url: URL, completion: @escaping (UIImage?) -> Void) {
         URLSession.shared.dataTask(with: url) { data, _, _ in
             guard let data = data, let image = UIImage(data: data) else {
@@ -75,20 +75,20 @@ class BarcodeManager {
         }.resume()
     }
 
-    // ✅ デバイス内に保存
+    //デバイス内に保存
     private func saveImage(_ image: UIImage) {
         guard let data = image.pngData() else { return }
         let path = imageFilePath()
         try? data.write(to: path)
     }
 
-    // ✅ デバイス内から読み込み
+    //デバイス内から読み込み
     func loadSavedBarcodeImage() -> UIImage? {
         let path = imageFilePath()
         return UIImage(contentsOfFile: path.path)
     }
 
-    // ✅ ファイル保存先（非表示領域）
+    //ファイル保存先（非表示領域）
     private func imageFilePath() -> URL {
         let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
         return dir.appendingPathComponent(barcodeImageFileName)

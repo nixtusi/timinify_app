@@ -15,7 +15,7 @@ class NotificationManager {
     
     private init() {}
     
-    // 🔔 通知の許可リクエスト
+    //通知の許可リクエスト
     func requestAuthorization() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             if let error = error {
@@ -26,12 +26,12 @@ class NotificationManager {
         }
     }
     
-    // 🧹 既存通知を削除（再登録前に呼ぶ）
+    //既存通知を削除（再登録前に呼ぶ）
     func clearAllScheduledNotifications() {
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
     }
 
-    // 📅 通知をスケジュール
+    //通知をスケジュール
     func scheduleNotifications(for tasks: [BeefTask]) {
         guard let email = Auth.auth().currentUser?.email,
               let studentNumber = email.components(separatedBy: "@").first else {

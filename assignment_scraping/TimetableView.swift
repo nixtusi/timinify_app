@@ -7,12 +7,20 @@
 //
 
 import SwiftUI
+import FirebaseAuth
 
 struct TimetableView: View {
     @StateObject private var fetcher = TimetableFetcher()
     
-    @State private var selectedYear = 2025
-    @State private var selectedQuarter = 2
+    @AppStorage("selectedYear") private var selectedYear: Int = 2025
+    @AppStorage("selectedQuarter") private var selectedQuarter: Int = 2
+    @AppStorage("hasInitializedYear") private var hasInitializedYear: Bool = false
+    
+    @State private var admissionYear: Int? = nil // 入学年度
+    private var studentNumber: String {
+        let email = Auth.auth().currentUser?.email ?? ""
+        return email.replacingOccurrences(of: "@stu.kobe-u.ac.jp", with: "")
+    }
     
     @State private var selectedCourse: TimetableItem?
     @State private var selectedDay: String = ""
@@ -38,6 +46,16 @@ struct TimetableView: View {
             }
             .navigationTitle("時間割")
             .task {
+                if admissionYear == nil {
+                    if let prefix = Int(studentNumber.prefix(2)) {
+                        let year = 2000 + prefix
+                        self.admissionYear = year
+                        if !hasInitializedYear {
+                            self.selectedYear = year
+                            self.hasInitializedYear = true
+                        }
+                    }
+                }
                 await fetcher.loadFromFirestore(year: selectedYear, quarter: selectedQuarter)
             }
             .onChange(of: selectedYear) { _ in
@@ -55,14 +73,20 @@ struct TimetableView: View {
     
     private var controlPanel: some View {
         HStack {
-            // 年度ピッカー
+             //年度ピッカー
             Picker(selection: $selectedYear, label:
-                Text("\(String(selectedYear))年度")
+                Text(verbatim: "\(selectedYear)年度")
                     .font(.body.weight(.bold))
                     .foregroundColor(.gray)
             ) {
-                ForEach(2023...2026, id: \.self) { year in
-                    Text("\(String(year))年度").tag(year)
+                if let baseYear = admissionYear {
+                    ForEach(baseYear...(baseYear + 3), id: \.self) { year in
+                        Text(verbatim: "\(year)年度").tag(year)
+                    }
+                } else {
+                    ForEach(2023...2026, id: \.self) { year in
+                        Text(verbatim: "\(year)年度").tag(year)
+                    }
                 }
             }
             .pickerStyle(MenuPickerStyle())
@@ -88,25 +112,6 @@ struct TimetableView: View {
     }
     
     private var contentBody: some View {
-//        if fetcher.isLoading {
-//            AnyView(
-//                ProgressView("読み込み中…")
-//                    .padding()
-//            )
-//        } else if let error = fetcher.errorMessage {
-//            AnyView(
-//                Text(error)
-//                    .foregroundColor(.red)
-//                    .multilineTextAlignment(.center)
-//                    .padding()
-//            )
-//        } else {
-//            AnyView(
-//                timetableGrid
-//                //  .padding(.horizontal)
-//            )
-//        }
-        
         timetableGrid
     }
     
@@ -122,7 +127,7 @@ struct TimetableView: View {
             let spacingPerSide: CGFloat = 2.0
             let fridayTrailing: CGFloat = 6.0
 
-            // ✅ spacing: 各タイルの左右 (2px×2) × 5日 + 金曜追加px
+            //spacing: 各タイルの左右 (2px×2) × 5日 + 金曜追加px
             let totalColSpacing = spacingPerSide * 2 * CGFloat(days.count) + (fridayTrailing - spacingPerSide)
             let colW = (totalW - timeColW - totalColSpacing) / CGFloat(days.count)
 
@@ -209,7 +214,6 @@ struct TimetableView: View {
             }
         }
         
-        
         private func timeForPeriod(_ p: Int) -> String {
             switch p {
             case 1: return "08:50\n10:20"
@@ -264,7 +268,7 @@ struct TimetableView: View {
                             .fill(Color.pink.opacity(0.18))
                     )
                 } else {
-                    // ✅ 空のセルにも枠線表示
+                    //空のセルにも枠線表示
                     Color.clear
                 }
             }
@@ -288,5 +292,3 @@ struct TimetableView: View {
         return weekdaySymbols[weekday - 1]
     }
 }
-
-

@@ -38,7 +38,7 @@ struct BeefTaskApp: App {
             RootView()
                 .environmentObject(appState)
                 .onAppear {
-                    // ✅ FirebaseAuth からログイン状態を判定（メール認証済みのみ）
+                    //FirebaseAuth からログイン状態を判定（メール認証済みのみ）
                     if let user = Auth.auth().currentUser {
                         user.reload { _ in
                             if user.isEmailVerified {
@@ -46,7 +46,7 @@ struct BeefTaskApp: App {
                             }
                         }
                     }
-                    // ✅ FirebaseAuth のメールアドレスから学籍番号を取得（AppStorage は不要）
+                    //FirebaseAuth のメールアドレスから学籍番号を取得（AppStorage は不要）
                     if let email = Auth.auth().currentUser?.email {
                         appState.studentNumber = email.components(separatedBy: "@").first ?? ""
                     }
@@ -54,7 +54,7 @@ struct BeefTaskApp: App {
         }
     }
 
-    // ✅ ログイン状態に応じて遷移先を分岐
+    //ログイン状態に応じて遷移先を分岐
     @ViewBuilder
     private func RootView() -> some View {
         if appState.isLoggedIn {
@@ -66,7 +66,7 @@ struct BeefTaskApp: App {
         }
     }
 
-    // ✅ 課題取得タスク処理
+    //課題取得タスク処理
     static func handleAppRefresh(task: BGAppRefreshTask) {
         print("📡 BGTask: 開始")
 
@@ -95,7 +95,7 @@ struct BeefTaskApp: App {
 //        }
 //    }
 
-    // ✅ 課題情報を取得してWidgetに保存
+    //課題情報を取得してWidgetに保存
     static func fetchAndStoreAssignments() async {
         do {
             let url = URL(string: "https://your-api.com/assignments")! // ← 必要に応じて差し替え

@@ -9,7 +9,8 @@
 
 import Foundation
 
-struct Syllabus: Codable {
+struct Syllabus: Identifiable, Codable {
+    var id: String { code }  // 一意なIDとして時間割コードを仮定
     var title: String
     var teacher: String
     var credits: String?
@@ -23,4 +24,12 @@ struct Syllabus: Codable {
     var remarks: String?
     var contact: String?
     var message: String?
+    var keywords: String?
+    var preparationReview: String?
+    var improvements: String?
+    var referenceURL: String?
+    var evaluationTeacher: String?
+    var evaluationMethod: String?
+    var theme: String?
+    var code: String  // ← 時間割コード（例: "1G004"）
 }

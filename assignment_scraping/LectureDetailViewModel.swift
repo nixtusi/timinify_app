@@ -17,7 +17,6 @@ class LectureDetailViewModel: ObservableObject {
     @Published var credits: String = ""
     @Published var evaluation: String = ""
     @Published var references: String = ""
-    @Published var evaluationCriteria: String = "" // ← 成績評価基準用
 
     private var db = Firestore.firestore()
     
@@ -26,7 +25,7 @@ class LectureDetailViewModel: ObservableObject {
     /// Firestoreからデータを取得し、必要なら/classに授業を登録
     func fetchLectureDetails(studentId: String, admissionYear: String, year: String, quarter: String, day: String, period: Int, lectureCode: String) async {
         do {
-            // 🔹 `/Timetable/...` から授業情報を取得
+            //"/Timetable/..."から授業情報を取得
             let timetablePath = "Timetable/\(admissionYear)/\(studentId)/\(year)/Q\(quarter)/\(lectureCode)\(day)\(period)"
             let timetableRef = db.document(timetablePath)
             let timetableData = try await timetableRef.getDocument().data()
@@ -39,7 +38,7 @@ class LectureDetailViewModel: ObservableObject {
                 self.color = Color(hex: colorHex)
             }
 
-            // 🔹 `/class/...` に教室データがなければ登録、あれば補完
+            //"/class/..."に教室データがなければ登録、あれば補完
             let classPath = "class/\(year)/Q\(quarter)/\(lectureCode)"
             let classRef = db.document(classPath)
             let classDoc = try await classRef.getDocument()
@@ -58,7 +57,7 @@ class LectureDetailViewModel: ObservableObject {
                 ])
             }
 
-            // 🔹 `/NewSyllabus/...` からシラバス概要を取得
+            //"/NewSyllabus/..."からシラバス概要を取得
             let syllabusRef = db.document("NewSyllabus/\(year)/第\(quarter)クォーター/\(day)/lectures/\(lectureCode)")
             let syllabusDoc = try await syllabusRef.getDocument()
 
@@ -90,7 +89,7 @@ class LectureDetailViewModel: ObservableObject {
     func fetchSyllabus(year: String, quarter: String, day: String, code: String) async {
         let db = Firestore.firestore()
         
-        // 🔽 クォーターごとの探索順を定義
+        //クォーターごとの探索順を定義
         let quarterSearchOrder: [String: [String]] = [
             "第1クォーター": ["第1クォーター"],
             "第2クォーター": ["第2クォーター", "第1クォーター"],
@@ -126,13 +125,12 @@ class LectureDetailViewModel: ObservableObject {
                     self.credits = data["単位数"] as? String ?? ""
                     self.evaluation = data["成績評価基準"] as? String ?? ""
                     self.references = data["参考書・参考資料等"] as? String ?? ""
-                    self.evaluationCriteria = data["成績評価基準"] as? String ?? "" // ← ここで評価基準を保存
 
                     self.syllabus = Syllabus(
                         title: data["開講科目名"] as? String ?? "",
                         teacher: data["担当"] as? String ?? "",
-                        credits: self.credits,
-                        evaluation: self.evaluation,
+                        credits: data["単位数"] as? String,
+                        evaluation: data["成績評価基準"] as? String,
                         textbooks: data["教科書"] as? String,
                         summary: data["授業の概要と計画"] as? String,
                         goals: data["授業の到達目標"] as? String,
@@ -141,7 +139,15 @@ class LectureDetailViewModel: ObservableObject {
                         schedule: data["開講期間"] as? String,
                         remarks: data["履修上の注意"] as? String,
                         contact: data["オフィスアワー・連絡先"] as? String,
-                        message: data["学生へのメッセージ"] as? String
+                        message: data["学生へのメッセージ"] as? String,
+                        keywords: data["キーワード"] as? String,
+                        preparationReview: data["事前・事後学習"] as? String,
+                        improvements: data["今年度の工夫"] as? String,
+                        referenceURL: data["参考URL"] as? String,
+                        evaluationTeacher: data["成績入力担当"] as? String,
+                        evaluationMethod: data["成績評価方法"] as? String,
+                        theme: data["授業のテーマ"] as? String,
+                        code: data["時間割コード"] as? String ?? ""
                     )
                     
                     print("✅ シラバス情報を取得しました（\(q)）")
@@ -153,7 +159,6 @@ class LectureDetailViewModel: ObservableObject {
                 print("❌ Firestore取得エラー（\(q)）: \(error.localizedDescription)")
             }
         }
-        
         print("❌ いずれのクォーターにもシラバスが存在しません")
     }
 }

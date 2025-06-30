@@ -4,12 +4,6 @@
 //
 //  Created by Yuta Nisimatsu on 2025/05/05.
 //
-//
-//  TaskFetcher.swift
-//  assignment_scraping
-//
-//  Created by Yuta Nisimatsu on 2025/05/05.
-//
 
 import Foundation
 import Combine
@@ -24,7 +18,7 @@ class TaskFetcher: ObservableObject {
     @Published var lastUpdated: Date? = nil
 
     private let storageKey = "savedTasks"
-    private let apiURL = URL(string: "https://beefplus.timinify.com/beefplus")! // ✅ URL修正
+    private let apiURL = URL(string: "https://beefplus.timinify.com/beefplus")!
     private let lastUpdatedKey = "lastUpdatedTime"
 
     init() {
@@ -32,7 +26,7 @@ class TaskFetcher: ObservableObject {
         self.lastUpdated = UserDefaults.standard.object(forKey: lastUpdatedKey) as? Date
     }
 
-    // 🔄 保存済み課題を読み込む
+    //保存済み課題を読み込む
     func loadSavedTasks() {
         if let data = UserDefaults.standard.data(forKey: storageKey),
            let decoded = try? JSONDecoder().decode([BeefTask].self, from: data) {
@@ -40,7 +34,7 @@ class TaskFetcher: ObservableObject {
         }
     }
 
-    // 🔄 APIから課題を取得
+    //APIから課題を取得
     func fetchTasksFromAPI(retryCount: Int = 2) {
         loadSavedTasks()
 
@@ -64,7 +58,7 @@ class TaskFetcher: ObservableObject {
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        // ✅ JSONSerializationでエンコード（Codable不可）
+        //JSONSerializationでエンコード（Codable不可）
         let requestBody: [String: String] = [
             "student_number": studentNumber,
             "password": password
@@ -135,14 +129,14 @@ class TaskFetcher: ObservableObject {
         }.resume()
     }
 
-    // 🔐 ローカル保存
+    //ローカル保存
     private func saveTasksToLocal(_ tasks: [BeefTask]) {
-        // ① メインアプリ用
+        //1.メインアプリ用
         if let data = try? JSONEncoder().encode(tasks) {
             UserDefaults.standard.set(data, forKey: storageKey)
         }
 
-        // ② ウィジェット用（App Group）
+        //2.ウィジェット用（App Group）
         let sharedTasks = tasks.map {
             SharedTask(title: $0.title, deadline: $0.deadline, url: $0.url)
         }
