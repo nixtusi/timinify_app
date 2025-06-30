@@ -35,7 +35,8 @@ struct BeefTaskApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
+            //RootView()
+            SplashView()
                 .environmentObject(appState)
                 .onAppear {
                     //FirebaseAuth からログイン状態を判定（メール認証済みのみ）

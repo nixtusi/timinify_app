@@ -29,6 +29,8 @@ struct TimetableView: View {
     private let days = ["月", "火", "水", "木", "金"]
     private let periods = [1, 2, 3, 4, 5]
     
+    var colorHex: String? // Firestoreからcolorを受け取るようにする
+    
     var body: some View {
         NavigationStack {
             VStack(spacing: 2) {
@@ -73,7 +75,7 @@ struct TimetableView: View {
     
     private var controlPanel: some View {
         HStack {
-             //年度ピッカー
+            //年度ピッカー
             Picker(selection: $selectedYear, label:
                 Text(verbatim: "\(selectedYear)年度")
                     .font(.body.weight(.bold))
@@ -129,11 +131,11 @@ struct TimetableView: View {
 
             //spacing: 各タイルの左右 (2px×2) × 5日 + 金曜追加px
             let totalColSpacing = spacingPerSide * 2 * CGFloat(days.count) + (fridayTrailing - spacingPerSide)
-            let colW = (totalW - timeColW - totalColSpacing) / CGFloat(days.count)
+            let colW = max(0, (totalW - timeColW - totalColSpacing) / CGFloat(days.count))
 
             let rowSpacing = spacingPerSide * 2
             let totalRowSpacing = rowSpacing * CGFloat(periods.count - 1)
-            let rowH = (totalH - headerH - verticalPadding - totalRowSpacing) / CGFloat(periods.count)
+            let rowH = max(0, (totalH - headerH - verticalPadding - totalRowSpacing) / CGFloat(periods.count))
 
             let todayWeekdaySymbol = weekdaySymbolFromToday()
 
@@ -250,13 +252,13 @@ struct TimetableView: View {
                         
                         Text(c.room ?? "")
                             .font(.caption2)
-                            //.foregroundColor(.black)
+                            //.foregroundColor(.white)
                             .foregroundColor(.primary)
                             .frame(maxWidth: .infinity, minHeight: 14, maxHeight: 14)
                             .background(
                                 RoundedRectangle(cornerRadius: 3)
-                                    //.fill(Color.white)
-                                    .fill(Color(UIColor.systemBackground))
+                                    //.fill(Color(UIColor.systemBackground))
+                                    .fill(Color(hex: c.color ?? "#FF3B30").opacity(0.64))
                             )
                             .padding(.horizontal, 1.7)
                             .padding(.bottom, 2.1)
@@ -265,7 +267,7 @@ struct TimetableView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(
                         RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.pink.opacity(0.18))
+                            .fill(Color(hex: c.color ?? "#FF3B30").opacity(0.18))
                     )
                 } else {
                     //空のセルにも枠線表示

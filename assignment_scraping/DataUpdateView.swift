@@ -73,6 +73,7 @@ struct DataUpdateView: View {
             }
             .padding()
         }
+        .background(Color(UIColor.systemGray6))
         .navigationTitle("データ更新")
         .navigationBarTitleDisplayMode(.inline)
     }

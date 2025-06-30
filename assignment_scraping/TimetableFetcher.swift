@@ -21,6 +21,7 @@ struct TimetableItem: Codable, Identifiable, Hashable {
     let title: String
     let room: String?
     var quarter: Int = 1
+    var color: String? //新たに追加
 
     private enum CodingKeys: String, CodingKey {
         case code, day, period, teacher, title, room
@@ -237,6 +238,11 @@ class TimetableFetcher: ObservableObject {
             for doc in snapshot.documents {
                 var item = try doc.data(as: TimetableItem.self)
                 item.quarter = quarter
+                
+                let data = doc.data()
+                if let colorHex = data["color"] as? String {
+                    item.color = colorHex
+                }
 
                 if item.room == nil || item.room == "" {
                     let classRef = firestore
@@ -255,7 +261,8 @@ class TimetableFetcher: ObservableObject {
                             teacher: item.teacher,
                             title: item.title,
                             room: classRoom,
-                            quarter: quarter
+                            quarter: quarter,
+                            color: item.color
                         )
                     } else {
                         //Firestoreになければ、自分の情報をclassに登録（初回補完用）
@@ -270,9 +277,7 @@ class TimetableFetcher: ObservableObject {
                         }
                     }
                 }
-
-                //どんな状態でも item を追加
-                items.append(item)
+                items.append(item) //どんな状態でも item を追加
             }
 
             timetableItems = items
