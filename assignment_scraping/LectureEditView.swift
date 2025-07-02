@@ -51,7 +51,7 @@ struct LectureEditView: View {
             Section(header: Text("基本情報")) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text("授業名:")
+                        Text("授業名")
                             .fontWeight(.semibold)
                         Text(title) // 修正済み
                     }
@@ -59,7 +59,7 @@ struct LectureEditView: View {
                     Divider()
 
                     HStack {
-                        Text("教員名:")
+                        Text("教員名")
                             .fontWeight(.semibold)
                         Text(teacher) // 修正済み
                     }
@@ -67,7 +67,7 @@ struct LectureEditView: View {
                     Divider()
 
                     HStack {
-                        Text("教室:")
+                        Text("教室")
                             .fontWeight(.semibold)
                         if isEditingRoom {
                             TextField("教室を入力", text: $newRoom)
@@ -82,6 +82,9 @@ struct LectureEditView: View {
                             }
                         }
                     }
+                }
+                .onTapGesture {
+                    UIApplication.shared.endEditing() //キーボード外をタップでキーボードを閉じる
                 }
             }
 

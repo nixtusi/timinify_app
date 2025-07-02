@@ -10,6 +10,9 @@
 		DA6088BC2DF9272B00F7C5FB /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = DA6088BB2DF9272B00F7C5FB /* FirebaseAuth */; };
 		DA6088BE2DF9272B00F7C5FB /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = DA6088BD2DF9272B00F7C5FB /* FirebaseCore */; };
 		DA6088C02DF9272B00F7C5FB /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = DA6088BF2DF9272B00F7C5FB /* FirebaseFirestore */; };
+		DA60B1962E1335BB001E445F /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DAF2B8552DD56CFD00F900F4 /* WidgetKit.framework */; };
+		DA60B1972E1335BB001E445F /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DAF2B8572DD56CFD00F900F4 /* SwiftUI.framework */; };
+		DA60B1A62E1335BC001E445F /* LibraryBarcodeWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = DA60B1952E1335BA001E445F /* LibraryBarcodeWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		DA926BD82DF9E3BE008E8094 /* FirebaseFirestoreCombine-Community in Frameworks */ = {isa = PBXBuildFile; productRef = DA926BD72DF9E3BE008E8094 /* FirebaseFirestoreCombine-Community */; };
 		DAF2B8562DD56CFD00F900F4 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DAF2B8552DD56CFD00F900F4 /* WidgetKit.framework */; };
 		DAF2B8582DD56CFD00F900F4 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DAF2B8572DD56CFD00F900F4 /* SwiftUI.framework */; };
@@ -17,6 +20,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		DA60B1A42E1335BC001E445F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DA8B07342DBFD74A00CDAC0A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DA60B1942E1335BA001E445F;
+			remoteInfo = LibraryBarcodeWidgetExtension;
+		};
 		DA8B074A2DBFD74B00CDAC0A /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = DA8B07342DBFD74A00CDAC0A /* Project object */;
@@ -48,6 +58,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				DAF2B8672DD56CFE00F900F4 /* AssignmentWidgetExtension.appex in Embed Foundation Extensions */,
+				DA60B1A62E1335BC001E445F /* LibraryBarcodeWidgetExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -55,6 +66,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		DA60B1952E1335BA001E445F /* LibraryBarcodeWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LibraryBarcodeWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		DA60B1AD2E13377F001E445F /* LibraryBarcodeWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LibraryBarcodeWidgetExtension.entitlements; sourceTree = "<group>"; };
 		DA8B073C2DBFD74A00CDAC0A /* assignment_scraping.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = assignment_scraping.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DA8B07492DBFD74B00CDAC0A /* assignment_scrapingTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = assignment_scrapingTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DA8B07532DBFD74B00CDAC0A /* assignment_scrapingUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = assignment_scrapingUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -65,6 +78,20 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		DA60B1AA2E1335BC001E445F /* Exceptions for "LibraryBarcodeWidget" folder in "LibraryBarcodeWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = DA60B1942E1335BA001E445F /* LibraryBarcodeWidgetExtension */;
+		};
+		DA60B1AC2E1336BA001E445F /* Exceptions for "assignment_scraping" folder in "LibraryBarcodeWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				BarcodeManager.swift,
+			);
+			target = DA60B1942E1335BA001E445F /* LibraryBarcodeWidgetExtension */;
+		};
 		DAF2B8682DD56CFE00F900F4 /* Exceptions for "AssignmentWidget" folder in "AssignmentWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -82,8 +109,19 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		DA60B1982E1335BB001E445F /* LibraryBarcodeWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				DA60B1AA2E1335BC001E445F /* Exceptions for "LibraryBarcodeWidget" folder in "LibraryBarcodeWidgetExtension" target */,
+			);
+			path = LibraryBarcodeWidget;
+			sourceTree = "<group>";
+		};
 		DA8B073E2DBFD74A00CDAC0A /* assignment_scraping */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				DA60B1AC2E1336BA001E445F /* Exceptions for "assignment_scraping" folder in "LibraryBarcodeWidgetExtension" target */,
+			);
 			path = assignment_scraping;
 			sourceTree = "<group>";
 		};
@@ -109,6 +147,15 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		DA60B1922E1335BA001E445F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DA60B1972E1335BB001E445F /* SwiftUI.framework in Frameworks */,
+				DA60B1962E1335BB001E445F /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DA8B07392DBFD74A00CDAC0A /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -149,11 +196,13 @@
 		DA8B07332DBFD74A00CDAC0A = {
 			isa = PBXGroup;
 			children = (
+				DA60B1AD2E13377F001E445F /* LibraryBarcodeWidgetExtension.entitlements */,
 				DAF2B86D2DD56D6500F900F4 /* AssignmentWidgetExtension.entitlements */,
 				DA8B073E2DBFD74A00CDAC0A /* assignment_scraping */,
 				DA8B074C2DBFD74B00CDAC0A /* assignment_scrapingTests */,
 				DA8B07562DBFD74B00CDAC0A /* assignment_scrapingUITests */,
 				DAF2B8592DD56CFD00F900F4 /* AssignmentWidget */,
+				DA60B1982E1335BB001E445F /* LibraryBarcodeWidget */,
 				DAF2B8542DD56CFD00F900F4 /* Frameworks */,
 				DA8B073D2DBFD74A00CDAC0A /* Products */,
 			);
@@ -166,6 +215,7 @@
 				DA8B07492DBFD74B00CDAC0A /* assignment_scrapingTests.xctest */,
 				DA8B07532DBFD74B00CDAC0A /* assignment_scrapingUITests.xctest */,
 				DAF2B8532DD56CFD00F900F4 /* AssignmentWidgetExtension.appex */,
+				DA60B1952E1335BA001E445F /* LibraryBarcodeWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -182,6 +232,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		DA60B1942E1335BA001E445F /* LibraryBarcodeWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DA60B1A72E1335BC001E445F /* Build configuration list for PBXNativeTarget "LibraryBarcodeWidgetExtension" */;
+			buildPhases = (
+				DA60B1912E1335BA001E445F /* Sources */,
+				DA60B1922E1335BA001E445F /* Frameworks */,
+				DA60B1932E1335BA001E445F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				DA60B1982E1335BB001E445F /* LibraryBarcodeWidget */,
+			);
+			name = LibraryBarcodeWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = LibraryBarcodeWidgetExtension;
+			productReference = DA60B1952E1335BA001E445F /* LibraryBarcodeWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		DA8B073B2DBFD74A00CDAC0A /* assignment_scraping */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = DA8B075D2DBFD74B00CDAC0A /* Build configuration list for PBXNativeTarget "assignment_scraping" */;
@@ -195,6 +267,7 @@
 			);
 			dependencies = (
 				DAF2B8662DD56CFE00F900F4 /* PBXTargetDependency */,
+				DA60B1A52E1335BC001E445F /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				DA8B073E2DBFD74A00CDAC0A /* assignment_scraping */,
@@ -285,9 +358,12 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1630;
+				LastSwiftUpdateCheck = 1640;
 				LastUpgradeCheck = 1630;
 				TargetAttributes = {
+					DA60B1942E1335BA001E445F = {
+						CreatedOnToolsVersion = 16.4;
+					};
 					DA8B073B2DBFD74A00CDAC0A = {
 						CreatedOnToolsVersion = 16.3;
 					};
@@ -325,11 +401,19 @@
 				DA8B07482DBFD74B00CDAC0A /* assignment_scrapingTests */,
 				DA8B07522DBFD74B00CDAC0A /* assignment_scrapingUITests */,
 				DAF2B8522DD56CFD00F900F4 /* AssignmentWidgetExtension */,
+				DA60B1942E1335BA001E445F /* LibraryBarcodeWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		DA60B1932E1335BA001E445F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DA8B073A2DBFD74A00CDAC0A /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -361,6 +445,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		DA60B1912E1335BA001E445F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DA8B07382DBFD74A00CDAC0A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -392,6 +483,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		DA60B1A52E1335BC001E445F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DA60B1942E1335BA001E445F /* LibraryBarcodeWidgetExtension */;
+			targetProxy = DA60B1A42E1335BC001E445F /* PBXContainerItemProxy */;
+		};
 		DA8B074B2DBFD74B00CDAC0A /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = DA8B073B2DBFD74A00CDAC0A /* assignment_scraping */;
@@ -410,6 +506,64 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		DA60B1A82E1335BC001E445F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = LibraryBarcodeWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 47R2RGPDLK;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LibraryBarcodeWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = LibraryBarcodeWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "yuta-nishimatsu.assignment-scraping.LibraryBarcodeWidget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		DA60B1A92E1335BC001E445F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = LibraryBarcodeWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 47R2RGPDLK;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LibraryBarcodeWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = LibraryBarcodeWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "yuta-nishimatsu.assignment-scraping.LibraryBarcodeWidget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		DA8B075B2DBFD74B00CDAC0A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -734,6 +888,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		DA60B1A72E1335BC001E445F /* Build configuration list for PBXNativeTarget "LibraryBarcodeWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DA60B1A82E1335BC001E445F /* Debug */,
+				DA60B1A92E1335BC001E445F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		DA8B07372DBFD74A00CDAC0A /* Build configuration list for PBXProject "assignment_scraping" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

@@ -62,7 +62,11 @@ struct SyllabusDetailView: View {
                         sectionView(title: "今年度の工夫", content: improv)
                     }
                     if let textbooks = syllabus.textbooks {
-                        sectionView(title: "教科書", content: textbooks)
+                        let textbookText = textbooks.map { $0.displayText }.joined(separator: "\n")
+                        sectionView(title: "教科書", content: textbookText)
+                    }
+                    if let references = syllabus.references {
+                        sectionView(title: "参考書・参考資料等", content: references) // ← textbooks → references に修正
                     }
                     if let language = syllabus.language {
                         sectionView(title: "使用言語", content: language)

@@ -15,7 +15,7 @@ struct Syllabus: Identifiable, Codable {
     var teacher: String
     var credits: String?
     var evaluation: String?
-    var textbooks: String?
+    var textbooks: [TextbookContent]?
     var summary: String?
     var goals: String?
     var language: String?
@@ -31,5 +31,6 @@ struct Syllabus: Identifiable, Codable {
     var evaluationTeacher: String?
     var evaluationMethod: String?
     var theme: String?
+    var references: String?
     var code: String  // ← 時間割コード（例: "1G004"）
 }
