@@ -14,22 +14,34 @@ struct SyllabusDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Group {
-                    sectionView(title: "開講科目名", content: syllabus.title)
-                    
+
                     if !syllabus.code.isEmpty {
-                        sectionView(title: "時間割コード", content: syllabus.code)
-                    }
-                    if let input = syllabus.evaluationTeacher {
-                        sectionView(title: "成績入力担当", content: input)
-                    }
-                    if let method = syllabus.method {
-                        sectionView(title: "授業形態", content: method)
-                    }
-                    if let period = syllabus.schedule {
-                        sectionView(title: "開講期間", content: period)
+                        sectionViewInline(title: "時間割コード", content: syllabus.code)
                     }
                     
-                    Divider()
+                    sectionViewInline(title: "開講科目名", content: syllabus.title)
+                    
+                    if let input = syllabus.evaluationTeacher {
+                        sectionViewInline(title: "成績入力担当", content: input)
+                    }
+                    
+                    if let method = syllabus.method {
+                        sectionViewInline(title: "授業形態", content: method)
+                    }
+                    
+                    //単位数
+                    if let credits = syllabus.credits {
+                        sectionViewInline(title: "単位数", content: credits)
+                    }
+                    
+                    if let period = syllabus.schedule {
+                        sectionViewInline(title: "開講期間", content: period)
+                    }
+                }
+                    
+                Divider()
+            
+                Group{
                     
                     if let theme = syllabus.theme {
                         sectionView(title: "授業のテーマ", content: theme)
@@ -49,11 +61,14 @@ struct SyllabusDetailView: View {
                     if let remarks = syllabus.remarks {
                         sectionView(title: "履修上の注意", content: remarks)
                     }
+                    
+                    //機能してる？
                     if let prep = syllabus.preparationReview {
-                        sectionView(title: "事前・事後学習", content: prep)
+                        sectionView(title: "事前・事後学修", content: prep)
                     }
+                    
                     if let contact = syllabus.contact {
-                        sectionView(title: "連絡先", content: contact)
+                        sectionView(title: "オフィスアワー・連絡先", content: contact)
                     }
                     if let message = syllabus.message {
                         sectionView(title: "学生へのメッセージ", content: message)
@@ -61,42 +76,94 @@ struct SyllabusDetailView: View {
                     if let improv = syllabus.improvements {
                         sectionView(title: "今年度の工夫", content: improv)
                     }
-                    if let textbooks = syllabus.textbooks {
-                        let textbookText = textbooks.map { $0.displayText }.joined(separator: "\n")
-                        sectionView(title: "教科書", content: textbookText)
+                    
+//                    //機能してる？
+//                    if let textbooks = syllabus.textbooks {
+//                        let textbookText = textbooks.map { $0.displayText }.joined(separator: "\n")
+//                        sectionView(title: "教科書", content: textbookText)
+//                    }
+                    
+                    // ✅ ここ差し替え（元の joined してた箇所を削除して↓に）
+                    if let textbooks = syllabus.textbooks, !textbooks.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("教科書").font(.headline)
+                            ForEach(textbooks) { book in
+                                if let url = book.url {
+                                    Link(destination: url) {
+                                        Text(book.displayText)
+                                            .font(.body)
+                                    }
+                                    //.tint(.blue)               // ✅ 青文字
+                                    .foregroundStyle(.blue)
+                                    .buttonStyle(.plain)       // （余計な装飾を消す）
+                                } else {
+                                    Text(book.displayText)
+                                        .font(.body)
+                                }
+                            }
+                        }
+                        .padding(.bottom, 8)
                     }
+                    
                     if let references = syllabus.references {
                         sectionView(title: "参考書・参考資料等", content: references) // ← textbooks → references に修正
                     }
                     if let language = syllabus.language {
-                        sectionView(title: "使用言語", content: language)
+                        sectionView(title: "授業における使用言語", content: language)
                     }
                     if let keywords = syllabus.keywords {
                         sectionView(title: "キーワード", content: keywords)
                     }
-                    if let url = syllabus.referenceURL {
-                        sectionView(title: "参考URL", content: url)
+                    
+//                    if let url = syllabus.referenceURL {
+//                        sectionView(title: "参考URL", content: url)
+//                    }
+                    
+                    // ✅ 参考URL（URLとして有効なら青文字リンク）
+                    if let urlStr = syllabus.referenceURL,
+                       let url = URL(string: urlStr),
+                       !urlStr.isEmpty {
+                        sectionViewLink(title: "参考URL", label: urlStr, url: url)   // ✅ 新関数
+                    } else if let urlStr = syllabus.referenceURL, !urlStr.isEmpty {
+                        sectionView(title: "参考URL", content: urlStr)               // URLじゃなければ従来どおり
                     }
                 }
             }
             .padding()
         }
+        .onAppear { //確認
+            print("📝 preparationReview:", syllabus.preparationReview as Any)
+            print("📚 textbooks:", syllabus.textbooks as Any)
+        }
         .navigationTitle("シラバス詳細")
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    // 共通表示スタイルを関数化
-    private func sectionView(title: String, content: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+    // MARK: - 一行表示用 ViewBuilder
+    @ViewBuilder
+    private func sectionViewInline(title: String, content: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(title)
                 .font(.headline)
-                //.foregroundColor(.blue)
             Text(content)
                 .font(.body)
-                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(1)                // 必要なら省略
+                .truncationMode(.tail)
         }
-        .padding(.bottom, 8)
+        .padding(.vertical, 4)
     }
+
+      // MARK: - 従来の縦並び表示
+      private func sectionView(title: String, content: String) -> some View {
+          VStack(alignment: .leading, spacing: 6) {
+              Text(title)
+                  .font(.headline)
+              Text(content)
+                  .font(.body)
+                  .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(.bottom, 8)
+      }
     
     //改行
     func formatSyllabusText(_ text: String) -> String {
@@ -131,4 +198,19 @@ struct SyllabusDetailView: View {
 
         return formatted.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+}
+
+// ✅ タイトル＋青文字リンクの共通ビュー
+@ViewBuilder
+private func sectionViewLink(title: String, label: String, url: URL) -> some View {
+    VStack(alignment: .leading, spacing: 6) {
+        Text(title)
+            .font(.headline)
+        Link(label, destination: url)
+            //.tint(.blue)                // 青文字
+            .foregroundStyle(.blue)
+            .buttonStyle(.plain)
+            .font(.body)
+    }
+    .padding(.bottom, 8)
 }

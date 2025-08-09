@@ -12,7 +12,7 @@ import FirebaseFirestore
 
 // MARK: - Models
 
-struct TimetableItem: Codable, Identifiable, Hashable {
+struct TimetableItem: Codable, Identifiable, Hashable, Equatable {
     var id: String { code + day + String(period) }
     let code: String
     let day: String
@@ -21,10 +21,14 @@ struct TimetableItem: Codable, Identifiable, Hashable {
     let title: String
     let room: String?
     var quarter: Int = 1
-    var color: String? //新たに追加
-
+    var color: String?
+    
     private enum CodingKeys: String, CodingKey {
-        case code, day, period, teacher, title, room
+        case code, day, period, teacher, title, room, quarter, color
+    }
+    
+    static func == (lhs: TimetableItem, rhs: TimetableItem) -> Bool {
+        lhs.id == rhs.id
     }
 }
 
@@ -62,6 +66,8 @@ class TimetableFetcher: ObservableObject {
 
     private let firestore = Firestore.firestore()
     private let baseURL = "https://uribonet.timinify.com"
+    
+    private let localKey = "cachedTimetableItems" // UserDefaultsキー名
 
     @MainActor
     func fetchAndUpload(
@@ -281,12 +287,29 @@ class TimetableFetcher: ObservableObject {
             }
 
             timetableItems = items
-            
+            saveToLocal()
             
         } catch {
             errorMessage = "Firestore 読み込み失敗: \(error.localizedDescription)"
         }
 
         isLoading = false
+    }
+    
+    func saveToLocal() {
+        if let encoded = try? JSONEncoder().encode(timetableItems) {
+            UserDefaults.standard.set(encoded, forKey: localKey)
+            print("📦 ローカルに時間割を保存しました")
+        }
+    }
+    
+    func loadFromLocal() {
+        if let data = UserDefaults.standard.data(forKey: localKey),
+           let decoded = try? JSONDecoder().decode([TimetableItem].self, from: data) {
+            self.timetableItems = decoded
+            print("✅ ローカルから時間割を読み込みました")
+        } else {
+            print("⚠️ ローカルデータが見つかりません")
+        }
     }
 }

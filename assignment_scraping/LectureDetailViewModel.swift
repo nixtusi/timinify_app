@@ -125,13 +125,13 @@ class LectureDetailViewModel: ObservableObject {
                     }
                     
                     // 🔽 textbooks フィールドのデコード補完
+                    // ✅ 非throwsなので try/catch は不要。値もログ出し
                     var decodedTextbooks: [TextbookContent]? = nil
                     if let rawTextbooks = data["教科書"] {
-                        do {
-                            decodedTextbooks = try decodeTextbookContent(from: rawTextbooks)
-                        } catch {
-                            print("⚠️ 教科書デコード失敗: \(error.localizedDescription)")
-                        }
+                    decodedTextbooks = decodeTextbookContent(from: rawTextbooks)  // ✅
+                        print("📚 decodedTextbooks:", decodedTextbooks ?? [])
+                     } else {
+                         print("📚 教科書フィールドなし")
                     }
                     
                     // 🔽 syllabus オブジェクトを生成
@@ -150,7 +150,7 @@ class LectureDetailViewModel: ObservableObject {
                         contact: data["オフィスアワー・連絡先"] as? String,
                         message: data["学生へのメッセージ"] as? String,
                         keywords: data["キーワード"] as? String,
-                        preparationReview: data["事前・事後学習"] as? String,
+                        preparationReview: data["事前・事後学修"] as? String,
                         improvements: data["今年度の工夫"] as? String,
                         referenceURL: data["参考URL"] as? String,
                         evaluationTeacher: data["成績入力担当"] as? String,
@@ -176,20 +176,86 @@ class LectureDetailViewModel: ObservableObject {
         print("❌ いずれのクォーターにもシラバスが存在しません")
     }
     
-    private func decodeTextbookContent(from raw: Any?) throws -> [TextbookContent] {
-        guard let array = raw as? [Any] else { return [] }
-        
-        return array.compactMap { item in
-            if let str = item as? String {
-                return .string(str)
-            } else if let dict = item as? [String: Any],
-                      let text = dict["text"] as? String,
-                      let link = dict["link"] as? String {
-                return .object(text: text, link: link)
-            } else {
+//    private func decodeTextbookContent(from raw: Any?) throws -> [TextbookContent] {
+//        guard let array = raw as? [Any] else { return [] }
+//        
+//        return array.compactMap { item in
+//            if let str = item as? String {
+//                return .string(str)
+//            } else if let dict = item as? [String: Any],
+//                      let text = dict["text"] as? String,
+//                      let link = dict["link"] as? String {
+//                return .object(text: text, link: link)
+//            } else {
+//                return nil
+//            }
+//        }
+//    }
+    
+    /// 文字列単体・辞書単体・配列すべてに対応し、空文字/重複を除去する
+    /// 文字列単体・辞書単体・配列すべてに対応し、空文字/重複もケア
+    private func decodeTextbookContent(from raw: Any?) -> [TextbookContent] {
+        // 補助: 文字列トリムして空なら nil
+        func cleaned(_ s: String?) -> String? {
+            let t = s?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return t.isEmpty ? nil : t
+        }
+
+        // ✅ 辞書→TextbookContent（link が無ければ .string にフォールバック）
+        func makeFromDict(_ dict: [String: Any]) -> TextbookContent? {
+            // text 候補（text/title/name のいずれか）
+            guard let text = cleaned(dict["text"] as? String
+                                     ?? dict["title"] as? String
+                                     ?? dict["name"] as? String) else {
                 return nil
             }
+
+            // link 候補（link/url/URL、URL型も許容）
+            let linkAny = dict["link"] ?? dict["url"] ?? dict["URL"]
+            let linkStr: String? = {
+                if let s = linkAny as? String { return cleaned(s) }
+                if let u = linkAny as? URL    { return cleaned(u.absoluteString) }
+                return nil
+            }()
+
+            if let link = linkStr {
+                return .object(text: text, link: link)  // ✅ link は非Optionalで渡す
+            } else {
+                return .string(text)                     // ✅ link 無しなら .string に
+            }
         }
+
+        // ① 文字列単体
+        if let s = cleaned(raw as? String) {
+            return [.string(s)]
+        }
+        // ② 辞書単体
+        if let dict = raw as? [String: Any], let item = makeFromDict(dict) {
+            return [item]
+        }
+        // ③ 配列（混在OK）
+        if let array = raw as? [Any] {
+            // フラットに展開しつつ、空要素は除去
+            var out: [TextbookContent] = []
+            var seen = Set<String>() // 重複排除
+            for el in array {
+                let items = decodeTextbookContent(from: el)
+                for it in items {
+                    let key: String = {
+                        switch it {
+                        case .string(let t): return "S|\(t)"
+                        case .object(let t, let l): return "O|\(t)|\(l)"
+                        }
+                    }()
+                    if seen.insert(key).inserted {
+                        out.append(it)
+                    }
+                }
+            }
+            return out
+        }
+
+        return []
     }
     
     //口コミを取得
@@ -225,3 +291,4 @@ class LectureDetailViewModel: ObservableObject {
         return counts
     }
 }
+

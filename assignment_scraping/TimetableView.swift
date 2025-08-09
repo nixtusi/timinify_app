@@ -22,7 +22,14 @@ struct TimetableView: View {
         return email.replacingOccurrences(of: "@stu.kobe-u.ac.jp", with: "")
     }
     
-    @State private var selectedCourse: TimetableItem?
+    // Wrapperを定義
+    struct TimetableItemWrapper: Identifiable, Hashable {
+        let id = UUID()
+        let item: TimetableItem
+    }
+    
+    //@State private var selectedCourse: TimetableItem?
+    @State private var selectedCourse: TimetableItemWrapper?
     @State private var selectedDay: String = ""
     @State private var selectedPeriod: Int = 0
     
@@ -38,7 +45,16 @@ struct TimetableView: View {
                 contentBody
             }
             .background(Color(.systemGroupedBackground))
-            .navigationDestination(item: $selectedCourse) { course in
+//            .navigationDestination(item: $selectedCourse) { course in
+//                LectureDetailView(
+//                    lectureCode: course.code,
+//                    dayPeriod: "\(course.day)\(course.period)",
+//                    year: String(selectedYear),
+//                    quarter: "Q\(selectedQuarter)"
+//                )
+//            }
+            .navigationDestination(item: $selectedCourse) { wrapper in
+                let course = wrapper.item
                 LectureDetailView(
                     lectureCode: course.code,
                     dayPeriod: "\(course.day)\(course.period)",
@@ -46,6 +62,8 @@ struct TimetableView: View {
                     quarter: "Q\(selectedQuarter)"
                 )
             }
+            
+            
             .navigationTitle("時間割")
             .task {
                 if admissionYear == nil {
@@ -58,6 +76,7 @@ struct TimetableView: View {
                         }
                     }
                 }
+                fetcher.loadFromLocal() //起動時にローカルを先に表示
                 await fetcher.loadFromFirestore(year: selectedYear, quarter: selectedQuarter)
             }
             .onChange(of: selectedYear) { _ in
@@ -188,9 +207,10 @@ struct TimetableView: View {
                                 .padding(.vertical, spacingPerSide)
                                 .padding(.leading, spacingPerSide)
                                 .padding(.trailing, isFriday ? fridayTrailing : spacingPerSide) // ✅ 金曜のみ4px
-                                .onTapGesture { //時間割詳細画面へ移動
+                                .onTapGesture {
                                     if let c = course {
-                                        selectedCourse = c
+                                        // 🔁 新しいUUIDで毎回変化を検知させる
+                                        selectedCourse = TimetableItemWrapper(item: c)
                                         selectedDay = day
                                         selectedPeriod = period
                                     }

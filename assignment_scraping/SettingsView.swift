@@ -26,9 +26,12 @@ struct SettingsView: View {
 
     var body: some View {
         ZStack {
-            //ダークモードに対応した背景色に変更
-            Color(UIColor.systemGroupedBackground)
-                .ignoresSafeArea()
+            Color(UIColor { trait in
+                trait.userInterfaceStyle == .dark
+                ? UIColor(red: 0.3, green: 0.25, blue: 0.2, alpha: 1.0) // ダーク時のベージュ風
+                : UIColor(red: 0.96, green: 0.93, blue: 0.86, alpha: 1.0) // 通常のベージュ
+            })
+            .ignoresSafeArea()
 
             Form {
                 Section(header: Text("アカウント")) {
@@ -86,6 +89,7 @@ struct SettingsView: View {
                 }
             }
             .background(Color.clear) //Formの背景を透明にして親ビューに従わせる
+            .scrollContentBackground(.hidden) //背景色の変更に使用
         }
         .onAppear {
             loadSavedBarcodeImage()
