@@ -65,7 +65,7 @@ class TimetableFetcher: ObservableObject {
     @Published var errorMessage: String?
 
     private let firestore = Firestore.firestore()
-    private let baseURL = "https://uribonet.timinify.com"
+    private let baseURL = "https://api.timinify.com"
     
     private let localKey = "cachedTimetableItems" // UserDefaultsキー名
 

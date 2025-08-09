@@ -11,7 +11,7 @@ import UIKit
 class BarcodeManager {
     static let shared = BarcodeManager()
 
-    private let apiURL = URL(string: "https://library.timinify.com/library")!
+    private let apiURL = URL(string: "https://api.timinify.com/library")!
     private let barcodeImageFileName = "barcode.png"
     
     private init() {}

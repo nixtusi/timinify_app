@@ -15,20 +15,33 @@ struct TaskListView: View {
         ZStack {
             Color(.systemGray6)
                 .ignoresSafeArea()
-            
+
             VStack(spacing: 0) {
                 ScrollView {
                     VStack(spacing: 16) {
+
+                        // ✅ 変更: 0件時の空表示（infoMessage を優先）
+                        if fetcher.tasks.isEmpty {
+                            VStack(spacing: 8) {
+                                Text(fetcher.infoMessage ?? "未提出の課題・テスト一覧はありません。")
+                                    .font(.headline)
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 16)
+                            }
+                            .padding(.top, 24)
+                        }
+
                         ForEach(fetcher.tasks) { beefTask in
                             VStack(alignment: .leading, spacing: 8) {
                                 Text(beefTask.course)
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
-                                
+
                                 Text(beefTask.title)
                                     .font(.headline)
                                     .foregroundColor(.primary)
-                                
+
                                 HStack {
                                     Text("締切: \(beefTask.deadline)")
                                         .font(.footnote)
@@ -49,14 +62,13 @@ struct TaskListView: View {
                                 }
                             }
                         }
-                        
-                        //リスト下部に更新時間を表示
-                        if !fetcher.tasks.isEmpty || fetcher.lastUpdated != nil || fetcher.isLoading {
+
+                        // ✅ 変更: 下部情報は infoMessage / lastUpdated / isLoading いずれかがあれば表示
+                        if !fetcher.tasks.isEmpty || fetcher.lastUpdated != nil || fetcher.isLoading || fetcher.infoMessage != nil {
                             HStack(spacing: 8) {
                                 if let updated = fetcher.lastUpdated {
                                     Text("最終更新 \(formattedDate(updated))")
                                 }
-
                                 if fetcher.isLoading {
                                     Text("最新データ取得中…")
                                 }
@@ -65,7 +77,15 @@ struct TaskListView: View {
                             .foregroundColor(.gray)
                             .padding(.bottom, 12)
                         }
-                        
+
+                        // （任意）エラー表示
+                        if let error = fetcher.errorMessage, !error.isEmpty {
+                            Text(error)
+                                .font(.footnote)
+                                .foregroundColor(.red)
+                                .padding(.horizontal)
+                                .padding(.bottom, 12)
+                        }
                     }
                     .padding(.top)
                 }
