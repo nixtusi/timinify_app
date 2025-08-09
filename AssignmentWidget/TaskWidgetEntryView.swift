@@ -115,19 +115,15 @@ struct TaskWidgetEntryView: View {
                         .foregroundColor(.gray)
 
                     ForEach(leftTasks.prefix(2)) { task in
-                        if let url = URL(string: task.url) {
-                            Link(destination: url) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(task.title)
-                                        .font(.system(size: 12, weight: .semibold))
-                                        .lineLimit(2)
-                                        .truncationMode(.tail) //...用
-                                        .frame(maxHeight: 32) //...用(必要に応じて調整)
-                                    Text(shortDate(from: task.deadline))
-                                        .font(.system(size: 10))
-                                        .foregroundColor(.secondary)
-                                }
-                            }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(task.title)
+                                .font(.system(size: 12, weight: .semibold))
+                                .lineLimit(2)
+                                .truncationMode(.tail)
+                                .frame(maxHeight: 32)
+                            Text(shortDate(from: task.deadline))
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
                         }
                     }
 
@@ -149,22 +145,15 @@ struct TaskWidgetEntryView: View {
                             .foregroundColor(.gray)
 
                         ForEach(leftTasks.prefix(2)) { task in
-                            
-                            if let url = URL(string: task.url) {
-                                Link(destination: url) {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(task.title)
-                                            .font(.system(size: 12, weight: .semibold))
-                                            .lineLimit(2)
-                                            .truncationMode(.tail) //...用
-                                            .frame(maxHeight: 32) //...用(必要に応じて調整)
-                                        Text(shortDate(from: task.deadline))
-                                            .font(.system(size: 10))
-                                            .foregroundColor(.secondary)
-                                        
-                                        
-                                    }
-                                }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(task.title)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .lineLimit(2)
+                                    .truncationMode(.tail)
+                                    .frame(maxHeight: 32)
+                                Text(shortDate(from: task.deadline))
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
                             }
                         }
                         
@@ -184,19 +173,15 @@ struct TaskWidgetEntryView: View {
                             .foregroundColor(.gray)
 
                         ForEach(rightTasks.prefix(2)) { task in
-                            if let url = URL(string: task.url) {
-                                Link(destination: url) {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(task.title)
-                                            .font(.system(size: 12, weight: .semibold))
-                                            .lineLimit(2)
-                                            .truncationMode(.tail) //...用
-                                            .frame(maxHeight: 32) //...用(必要に応じて調整)
-                                        Text(shortDate(from: task.deadline))
-                                            .font(.system(size: 10))
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(task.title)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .lineLimit(2)
+                                    .truncationMode(.tail)
+                                    .frame(maxHeight: 32)
+                                Text(shortDate(from: task.deadline))
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
                             }
                         }
 

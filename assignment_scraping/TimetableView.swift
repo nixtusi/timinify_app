@@ -17,6 +17,7 @@ struct TimetableView: View {
     @AppStorage("hasInitializedYear") private var hasInitializedYear: Bool = false
     
     @State private var admissionYear: Int? = nil // 入学年度
+    @Environment(\.scenePhase) private var scenePhase
     private var studentNumber: String {
         let email = Auth.auth().currentUser?.email ?? ""
         return email.replacingOccurrences(of: "@stu.kobe-u.ac.jp", with: "")
@@ -32,6 +33,7 @@ struct TimetableView: View {
     @State private var selectedCourse: TimetableItemWrapper?
     @State private var selectedDay: String = ""
     @State private var selectedPeriod: Int = 0
+    @State private var reloadTick: Int = 0
     
     private let days = ["月", "火", "水", "木", "金"]
     private let periods = [1, 2, 3, 4, 5]
@@ -62,8 +64,6 @@ struct TimetableView: View {
                     quarter: "Q\(selectedQuarter)"
                 )
             }
-            
-            
             .navigationTitle("時間割")
             .task {
                 if admissionYear == nil {
@@ -90,14 +90,27 @@ struct TimetableView: View {
                 }
             }
             .onAppear {
-                Task {
-                    await fetcher.loadFromFirestore(year: selectedYear, quarter: selectedQuarter)
-                }
+                // 画面に戻ってきたら強制リロード（サーバー最新を反映）
+                bumpReload()
             }
             .onReceive(NotificationCenter.default.publisher(for: .timetableDidChange)) { _ in
-                Task {
-                    await fetcher.loadFromFirestore(year: selectedYear, quarter: selectedQuarter)
-                }
+                bumpReload()
+            }
+            .onChange(of: selectedCourse) { newValue in
+                // 詳細画面などから戻ってきたタイミング（選択が解除）で再読込
+                if newValue == nil { bumpReload() }
+            }
+            .onChange(of: scenePhase) { phase in
+                if phase == .active { bumpReload() }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                bumpReload()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+                bumpReload()
+            }
+            .task(id: reloadTick) {
+                reloadTimetable()
             }
         }
     }
@@ -323,6 +336,16 @@ struct TimetableView: View {
         // .weekday は 1(日)〜7(土) → 月=2
         return weekdaySymbols[weekday - 1]
     }
+
+    // --- Timetable reload helper ---
+    private func reloadTimetable() {
+        fetcher.loadFromLocal()
+        Task {
+            await fetcher.loadFromFirestore(year: selectedYear, quarter: selectedQuarter)
+        }
+    }
+
+    private func bumpReload() { reloadTick &+= 1 }
 }
 
 extension Notification.Name {

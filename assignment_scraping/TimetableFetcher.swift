@@ -3,7 +3,7 @@
 //  assignment_scraping
 //
 //  Created by Yuta Nisimatsu on 2025/06/05.
-//  /uribonet API のレスポンスを Firestore に入学年度構造でアップロード（Qごと分類）
+//uribonet API のレスポンスを Firestore に入学年度構造でアップロード（Qごと分類）
 //
 
 import Foundation
@@ -264,30 +264,42 @@ class TimetableFetcher: ObservableObject {
                         .document(item.code)
                     let classDoc = try await classRef.getDocument()
 
-                    if let data = classDoc.data(), let classRoom = data["room"] as? String {
-                        //roomだけ差し替える（item再生成せず直接書き換え）
-                        item = TimetableItem(
-                            code: item.code,
-                            day: item.day,
-                            period: item.period,
-                            teacher: item.teacher,
-                            title: item.title,
-                            room: classRoom,
-                            quarter: quarter,
-                            color: item.color
-                        )
-                    } else {
-                        //Firestoreになければ、自分の情報をclassに登録（初回補完用）
-                        if let userRoom = item.room, !userRoom.isEmpty {
-                            try await classRef.setData([
-                                "room": userRoom,
-                                "teacher": item.teacher,
-                                "title": item.title,
-                                "code": item.code
-                            ])
-                            print("✅ classに新規登録: \(item.code)")
+                    let sharedRoom = classDoc.data()?["room"] as? String ?? ""
+                    let personalRoom = item.room ?? ""
+                    let finalRoom: String
+                    if !sharedRoom.isEmpty {
+                        finalRoom = sharedRoom
+                        // 共有が正として、個人値が異なる場合は個人側を同期
+                        if sharedRoom != personalRoom {
+                            try await path.document(item.id).setData([
+                                "room": sharedRoom
+                            ], merge: true)
+                            print("↩️ 個人roomを共有roomで同期: \(item.id)")
                         }
+                    } else if !personalRoom.isEmpty {
+                        finalRoom = personalRoom
+                        // 共有が未登録なら個人値を共有に反映（初回補完）
+                        try await classRef.setData([
+                            "room": personalRoom,
+                            "teacher": item.teacher,
+                            "title": item.title,
+                            "code": item.code
+                        ], merge: true)
+                        print("✅ classに反映: \(item.code)")
+                    } else {
+                        finalRoom = ""
                     }
+                    //roomだけ差し替える（item再生成せず直接書き換え）
+                    item = TimetableItem(
+                        code: item.code,
+                        day: item.day,
+                        period: item.period,
+                        teacher: item.teacher,
+                        title: item.title,
+                        room: finalRoom,
+                        quarter: quarter,
+                        color: item.color
+                    )
                 }
                 items.append(item) //どんな状態でも item を追加
             }

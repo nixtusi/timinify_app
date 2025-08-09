@@ -24,6 +24,7 @@ struct LectureEditView: View {
     @State private var newRoom: String = ""
     @State private var selectedColor: Color = .blue
     @State private var selectedColorHex: String = "#FF3B30" // ← デフォルト赤
+    @State private var showRoomEditConfirm = false
     
     @State private var showSaveAlert = false
     @Environment(\.dismiss) private var dismiss
@@ -75,13 +76,13 @@ struct LectureEditView: View {
                         } else {
                             Text(room) // 修正済み
                             Button {
-                                newRoom = room
-                                isEditingRoom = true
+                                showRoomEditConfirm = true
                             } label: {
                                 Image(systemName: "lock")
                             }
                         }
                     }
+                    
                 }
                 .onTapGesture {
                     UIApplication.shared.endEditing() //キーボード外をタップでキーボードを閉じる
@@ -142,6 +143,15 @@ struct LectureEditView: View {
                 }
             }
         }
+        .alert("教室の変更", isPresented: $showRoomEditConfirm) {
+            Button("キャンセル", role: .cancel) {}
+            Button("変更") {
+                newRoom = room
+                isEditingRoom = true
+            }
+        } message: {
+            Text("教室を変更すると、この授業の教室情報は全ユーザーに反映されます。")
+        }
         .alert("保存できました", isPresented: $showSaveAlert) { //保存成功時のアラート
             Button("OK") {
                 // 色更新を他画面へ通知しておく（TimetableViewが受け取り次第リロード）
@@ -152,47 +162,67 @@ struct LectureEditView: View {
     }
     
     private func uploadLectureData() {
-        // Firestoreのroomを取得して比較・変更
         let db = Firestore.firestore()
+
+        // Paths & Refs
+        let admissionYear = "20" + String(studentNumber.prefix(2))
+        let timetablePath = "Timetable/\(admissionYear)/\(studentNumber)/\(year)/\(quarter)/\(lectureCode)\(day)\(period)"
+        let timetableRef = db.document(timetablePath)
+
         let classPath = "/class/\(year)/Q\(quarter.replacingOccurrences(of: "Q", with: ""))/\(lectureCode)"
         let classRef = db.document(classPath)
 
-        classRef.getDocument { document, error in
-            if let document = document, document.exists {
-                let currentRoom = document.get("room") as? String ?? ""
-                if currentRoom != newRoom {
-                    classRef.updateData(["room": newRoom]) { err in
-                        if let err = err {
-                            print("Firestore更新エラー: \(err.localizedDescription)")
-                        } else {
-                            print("教室情報を更新しました: \(newRoom)")
-                        }
+        // ① 共有 (/class) が正 → 個人 (/Timetable) と差があれば個人を共有に同期
+        classRef.getDocument { classSnap, _ in
+            let sharedRoom = (classSnap?.data()? ["room"] as? String) ?? ""
+            timetableRef.getDocument { personalSnap, _ in
+                let personalRoom = (personalSnap?.data()? ["room"] as? String) ?? ""
+                if !sharedRoom.isEmpty, sharedRoom != personalRoom {
+                    timetableRef.setData(["room": sharedRoom], merge: true) { err in
+                        if let err = err { print("⚠️ 個人room同期エラー: \(err.localizedDescription)") }
+                        else { print("↩️ 個人roomを共有roomで同期: \(timetablePath)") }
                     }
-                } else {
-                    print("教室情報に変更なし")
                 }
-            } else {
-                print("Firestoreドキュメントが存在しません")
             }
         }
 
-        // 🎯 Timetable側にも色情報を保存（←ここが追加）
-        let admissionYear = "20" + String(studentNumber.prefix(2)) // 学籍番号から入学年度を取得（例: 2435109t → 2024）
-        let timetablePath = "Timetable/\(admissionYear)/\(studentNumber)/\(year)/\(quarter)/\(lectureCode)\(day)\(period)"
-        
-        print(selectedColorHex)
-        print(timetablePath)
+        // ② ユーザーが保存した内容を /class と /Timetable の両方に保存（共有が常に正）
+        let group = DispatchGroup()
+        var errors: [Error] = []
 
-        db.document(timetablePath).setData(["color": selectedColorHex], merge: true) { error in
-            if let error = error {
-                print("Timetableへの色保存エラー: \(error.localizedDescription)")
+        // /class ... に保存（作成 or 更新）
+        group.enter()
+        classRef.setData(["room": newRoom, "teacher": teacher, "title": title, "code": lectureCode], merge: true) { err in
+            if let err = err { errors.append(err); print("Firestore /class 保存エラー: \(err.localizedDescription)") }
+            else { print("/class に教室を保存: \(newRoom)") }
+            group.leave()
+        }
+
+        // /Timetable ... にも room を保存（共有に合わせる）
+        group.enter()
+        timetableRef.setData(["room": newRoom], merge: true) { err in
+            if let err = err { errors.append(err); print("Firestore /Timetable 保存エラー(room): \(err.localizedDescription)") }
+            else { print("/Timetable に教室を保存: \(newRoom)") }
+            group.leave()
+        }
+
+        // Timetable 側に色情報も保存
+        group.enter()
+        timetableRef.setData(["color": selectedColorHex], merge: true) { err in
+            if let err = err { errors.append(err); print("Timetable 色保存エラー: \(err.localizedDescription)") }
+            else { print("Timetable に色 \(selectedColorHex) を保存") }
+            group.leave()
+        }
+
+        group.notify(queue: .main) {
+            if errors.isEmpty {
+                showSaveAlert = true
             } else {
-                print("Timetableに色 \(selectedColorHex) を保存しました")
-                DispatchQueue.main.async {
-                   showSaveAlert = true // ✅ 保存完了後にアラート表示
-               }
+                // 少なくとも一つ失敗したらログのみ表示（必要ならUIに反映）
+                showSaveAlert = true
             }
         }
+
         print("教室: \(newRoom), 色: \(selectedColorHex)")
     }
 }
