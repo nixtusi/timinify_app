@@ -18,6 +18,10 @@ struct DataUpdateView: View {
 
     @StateObject private var fetcher = TimetableFetcher()
 
+    // ✅ 追加：実行中タスクとタイマーを握る
+    @State private var updateTask: Task<Void, Never>?
+    @State private var progressTimer: Timer?
+
     private var studentNumber: String {
         let email = Auth.auth().currentUser?.email ?? ""
         return email.replacingOccurrences(of: "@stu.kobe-u.ac.jp", with: "")
@@ -46,9 +50,22 @@ struct DataUpdateView: View {
                             .progressViewStyle(LinearProgressViewStyle())
                             .padding(.vertical)
 
-                        Text("更新中です… 他の画面には移動しないでください。")
+                        Text("更新中です… 他の画面に移動しないでください。")
                             .font(.footnote)
                             .foregroundColor(.secondary)
+
+                        // ✅ 追加：キャンセルボタン
+                        Button(role: .destructive) {
+                            cancelUpdate()
+                        } label: {
+                            Text("キャンセル")
+                                .bold()
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color(.systemRed))
+                                .foregroundColor(.white)
+                                .cornerRadius(10)
+                        }
                     }
                 } else if updateCompleted {
                     Label("データ更新が完了しました", systemImage: "checkmark.circle")
@@ -63,11 +80,10 @@ struct DataUpdateView: View {
                         Text("更新を開始する")
                             .bold()
                             .frame(maxWidth: .infinity)
-                            .padding() // ← 内側に配置
+                            .padding()
                             .background(Color(hex: "#4B3F96"))
                             .foregroundColor(.white)
                             .cornerRadius(10)
-                            .padding(.horizontal) // ← 外側にマージン
                     }
                 }
             }
@@ -84,47 +100,92 @@ struct DataUpdateView: View {
         errorMessage = nil
         updateCompleted = false
 
-        // 疑似プログレス（1分想定）
-        Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { timer in
-            updateProgress += 0.02
-            if updateProgress >= 1.0 {
-                timer.invalidate()
-            }
+        // ✅ タイマーを保持（後で無効化できるように）
+        progressTimer?.invalidate()
+        progressTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { timer in
+            updateProgress = min(updateProgress + 0.02, 1.0)
+            if updateProgress >= 1.0 { timer.invalidate() }
         }
 
-        Task {
-            let startDate = "2025-04-01"
-            let endDate = "2025-08-30"
-            print("時間割情報の取得開始")
+        // ✅ 実タスクを保持（後で cancel できるように）
+        updateTask?.cancel()
+        updateTask = Task {
+            do {
+                let startDate = "2025-04-01"
+                let endDate   = "2025-08-30"
 
-            await fetcher.fetchAndUpload(
-                quarter: "1,2",
-                startDate: startDate,
-                endDate: endDate
-            )
+                // ❗️フェッチ側もキャンセル協調が必要（下で解説）
+                try await fetcher.fetchAndUpload(
+                    quarter: "1,2",
+                    startDate: startDate,
+                    endDate: endDate
+                )
 
-            print("バーコードの取得開始")
-            await fetchAndUpdateBarcode()
+                try Task.checkCancellation() // ✅ 途中でキャンセルされたらここで throw
 
-            isUpdating = false
-            updateCompleted = true
+                try await fetchAndUpdateBarcodeCancellable()
+
+                await MainActor.run {
+                    isUpdating = false
+                    updateCompleted = true
+                }
+            } catch is CancellationError {
+                await MainActor.run {
+                    isUpdating = false
+                    errorMessage = "キャンセルしました"
+                }
+            } catch {
+                await MainActor.run {
+                    isUpdating = false
+                    errorMessage = error.localizedDescription
+                }
+            }
+
+            // ✅ 後片付け
+            await MainActor.run {
+                progressTimer?.invalidate()
+                progressTimer = nil
+                updateTask = nil
+            }
         }
     }
 
-    // MARK: - 修正された fetchAndUpdateBarcode()
-    private func fetchAndUpdateBarcode() async {
+    private func cancelUpdate() {
+        // ✅ タスク・タイマーを止め、UIを即座に更新
+        updateTask?.cancel()
+        progressTimer?.invalidate()
+        progressTimer = nil
+
+        isUpdating = false
+        if !updateCompleted { errorMessage = "ユーザーがキャンセルしました" }
+    }
+
+    // MARK: - バーコードのキャンセル協調版
+    private func fetchAndUpdateBarcodeCancellable() async throws {
+        try Task.checkCancellation()
         isFetchingBarcode = true
-        await withCheckedContinuation { continuation in
+        defer { isFetchingBarcode = false }
+
+        // ✅ 1) 継続の型を明示（CheckedContinuation<Void, Error>）
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             BarcodeManager.shared.fetchAndSaveBarcode { image in
-                if let image = image {
-                    print("✅ バーコード取得・保存成功（DataUpdateView）")
-                } else {
-                    self.errorMessage = "バーコードの取得に失敗しました"
+                if Task.isCancelled {
+                    continuation.resume(throwing: CancellationError())
+                    return
                 }
-                isFetchingBarcode = false
-                continuation.resume()
+                if image != nil {
+                    print("✅ バーコード取得・保存成功（DataUpdateView）")
+                    continuation.resume(returning: ())   // ✅ 2) Void を返す
+                } else {
+                    continuation.resume(
+                        throwing: NSError(
+                            domain: "Barcode",
+                            code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "バーコードの取得に失敗しました"]
+                        )
+                    )
+                }
             }
         }
     }
 }
-

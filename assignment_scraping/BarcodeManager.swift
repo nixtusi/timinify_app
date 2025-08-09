@@ -90,9 +90,6 @@ class BarcodeManager {
 
     //ファイル保存先（非表示領域）
     private func imageFilePath() -> URL {
-//        let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-//        return dir.appendingPathComponent(barcodeImageFileName)
-        
         let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.yuta-nishimatsu.assignment-scraping")!
             return container.appendingPathComponent(barcodeImageFileName)
     }

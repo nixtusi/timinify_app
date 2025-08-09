@@ -143,10 +143,12 @@ struct LectureEditView: View {
             }
         }
         .alert("保存できました", isPresented: $showSaveAlert) { //保存成功時のアラート
-              Button("OK") {
-                  dismiss() //OKボタンで画面を閉じる
-              }
-          }
+            Button("OK") {
+                // 色更新を他画面へ通知しておく（TimetableViewが受け取り次第リロード）
+                NotificationCenter.default.post(name: .timetableDidChange, object: nil)
+                dismiss() //OKボタンで画面を閉じる
+            }
+        }
     }
     
     private func uploadLectureData() {

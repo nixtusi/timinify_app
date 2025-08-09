@@ -143,132 +143,194 @@ struct LectureDetailView: View {
             // ────────────────────────────────
             // 口コミセクション
             // ────────────────────────────────
-            Section(header: Text("口コミ")) {
-                if viewModel.reviews.isEmpty {
-                    Text("口コミはまだありません")
-                } else {
-                    VStack(alignment: .leading, spacing: 12) {
-                        // 総合評価
-                        HStack {
-                            Text("総合評価").fontWeight(.semibold)
-                            Spacer()
-                            HStack(spacing: 4) {
-                                StarRatingView(score: Float(viewModel.averageRating),
-                                               starSize: 14,
-                                               spacing: 2)
-                                Text(String(format: "%.1f", viewModel.averageRating))
-                            }
-                        }
-                        // 楽単度
-                        HStack {
-                            Text("楽単度").fontWeight(.semibold)
-                            Spacer()
-                            HStack(spacing: 4) {
-                                StarRatingView(score: Float(viewModel.averageEasyScore),
-                                               starSize: 14,
-                                               spacing: 2)
-                                Text(String(format: "%.1f", viewModel.averageEasyScore))
-                            }
-                        }
-                        // 出席頻度
-                        HStack {
-                            Text("出席頻度").fontWeight(.semibold)
-                            Spacer()
-                            let options = ["毎回確認される", "ときどき確認される", "ほとんど確認されない", "出席確認なし"]
-                            let counts = viewModel.attendanceFrequencyCounts
-                            if let top = options.max(by: { (counts[$0] ?? 0) < (counts[$1] ?? 0) }),
-                               (counts[top] ?? 0) > 0 {
-                                Text(top)
-                            } else {
-                                Text("データがありません").foregroundColor(.secondary)
-                            }
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-            }
-
-            // ────────────────────────────────
-            // 口コミ投稿ボタン
-            // ────────────────────────────────
-            Section {
-                if !currentStudentID.isEmpty
-                   && !viewModel.reviews.contains(where: { $0.student_id == currentStudentID })
-                {
-                    Button("口コミを追加") {
-                        isShowingReviewPost = true
-                    }
-                    .sheet(isPresented: $isShowingReviewPost) {
-                        ReviewPostView(
-                            year: year,
-                            quarter: quarter.replacingOccurrences(of: "Q", with: ""),
-                            lectureCode: lectureCode
-                        )
-                        .onDisappear {
-                            Task {
-                                await viewModel.fetchReviews(
-                                    year: year,
-                                    quarter: quarter.replacingOccurrences(of: "Q", with: ""),
-                                    lectureCode: lectureCode
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+//            Section(header: Text("口コミ")) {
+//                if viewModel.reviews.isEmpty {
+//                    Text("口コミはまだありません")
+//                } else {
+//                    VStack(alignment: .leading, spacing: 12) {
+//                        // 総合評価
+//                        HStack {
+//                            Text("総合評価").fontWeight(.semibold)
+//                            Spacer()
+//                            HStack(spacing: 4) {
+//                                StarRatingView(score: Float(viewModel.averageRating),
+//                                               starSize: 14,
+//                                               spacing: 2)
+//                                Text(String(format: "%.1f", viewModel.averageRating))
+//                            }
+//                        }
+//                        // 楽単度
+//                        HStack {
+//                            Text("楽単度").fontWeight(.semibold)
+//                            Spacer()
+//                            HStack(spacing: 4) {
+//                                StarRatingView(score: Float(viewModel.averageEasyScore),
+//                                               starSize: 14,
+//                                               spacing: 2)
+//                                Text(String(format: "%.1f", viewModel.averageEasyScore))
+//                            }
+//                        }
+//                        // 出席頻度
+//                        HStack {
+//                            Text("出欠確認").fontWeight(.semibold)
+//                            Spacer()
+//                            let options = ["毎回確認される", "ときどき確認される", "ほとんど確認されない", "出席確認なし"]
+//                            let counts = viewModel.attendanceFrequencyCounts
+//                            if let top = options.max(by: { (counts[$0] ?? 0) < (counts[$1] ?? 0) }),
+//                               (counts[top] ?? 0) > 0 {
+//                                Text(top)
+//                            } else {
+//                                Text("データがありません").foregroundColor(.secondary)
+//                            }
+//                        }
+//                    }
+//                    .padding(.vertical, 4)
+//                }
+//            }
+//
+//            // ────────────────────────────────
+//            // 口コミ投稿ボタン
+//            // ────────────────────────────────
+//            Section {
+//                if !currentStudentID.isEmpty
+//                   && !viewModel.reviews.contains(where: { $0.student_id == currentStudentID })
+//                {
+//                    Button("口コミを追加") {
+//                        isShowingReviewPost = true
+//                    }
+//                    .sheet(isPresented: $isShowingReviewPost) {
+//                        ReviewPostView(
+//                            year: year,
+//                            quarter: quarter.replacingOccurrences(of: "Q", with: ""),
+//                            lectureCode: lectureCode
+//                        )
+//                        .onDisappear {
+//                            Task {
+//                                await viewModel.fetchReviews(
+//                                    year: year,
+//                                    quarter: quarter.replacingOccurrences(of: "Q", with: ""),
+//                                    lectureCode: lectureCode
+//                                )
+//                            }
+//                        }
+//                    }
+//                }
+//            }
 
             // ────────────────────────────────
             // 自由記述コメント一覧
             // ────────────────────────────────
-            Section {
-                ForEach(viewModel.reviews.filter { !$0.freeComment.isEmpty }) { review in
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text("総合評価").font(.subheadline).foregroundColor(.secondary)
-                            Spacer()
-                            StarRatingView(score: Float(review.rating),
-                                           starSize: 12, spacing: 1)
-                            Spacer()
-                            Text("楽単度").font(.subheadline).foregroundColor(.secondary)
-                            Spacer()
-                            StarRatingView(score: Float(review.easyScore),
-                                           starSize: 12, spacing: 1)
-                        }
-                        if !review.freeComment.isEmpty {
-                            Text(review.freeComment)
-                                .font(.body)
-                                .padding(.top, 4)
-                        }
-                        HStack {
-                            Text(review.createdAt, style: .date)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Spacer()
-                            let id = review.student_id
-                            if id.count > 7 {
-                                let yearPrefix = id.prefix(2)
-                                let codeIdx = id.index(id.startIndex, offsetBy: 7)
-                                let facultyCode = String(id[codeIdx])
-                                let facultyMap = [
-                                    "l": "文学部","c": "国際文化学部","d": "発達科学部",
-                                    "h": "国際人間科学部","j": "法学部","e": "経済学部",
-                                    "b": "経営学部","s": "理学部","m": "医学部",
-                                    "t": "工学部","a": "農学部","z": "海洋政策科学部"
-                                ]
-                                let faculty = facultyMap[facultyCode] ?? "不明"
-                                Text("(20\(yearPrefix)年度入学・\(faculty))")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            } else {
-                                Text("学籍番号エラー")
-                                    .font(.caption)
-                                    .foregroundColor(.red)
-                            }
-                        }
+//            Section {
+//                ForEach(viewModel.reviews.filter { !$0.freeComment.isEmpty }) { review in
+//                    VStack(alignment: .leading, spacing: 6) {
+//                        HStack {
+//                            Text("総合評価").font(.subheadline).foregroundColor(.secondary)
+//                            Spacer()
+//                            StarRatingView(score: Float(review.rating),
+//                                           starSize: 12, spacing: 1)
+//                            Spacer()
+//                            Text("楽単度").font(.subheadline).foregroundColor(.secondary)
+//                            Spacer()
+//                            StarRatingView(score: Float(review.easyScore),
+//                                           starSize: 12, spacing: 1)
+//                        }
+//                        if !review.freeComment.isEmpty {
+//                            Text(review.freeComment)
+//                                .font(.body)
+//                                .padding(.top, 4)
+//                        }
+//                        HStack {
+//                            Text(review.createdAt, style: .date)
+//                                .font(.caption)
+//                                .foregroundColor(.secondary)
+//                            Spacer()
+//                            let id = review.student_id
+//                            if id.count > 7 {
+//                                let yearPrefix = id.prefix(2)
+//                                let codeIdx = id.index(id.startIndex, offsetBy: 7)
+//                                let facultyCode = String(id[codeIdx])
+//                                let facultyMap = [
+//                                    "l": "文学部","c": "国際文化学部","d": "発達科学部",
+//                                    "h": "国際人間科学部","j": "法学部","e": "経済学部",
+//                                    "b": "経営学部","s": "理学部","m": "医学部",
+//                                    "t": "工学部","a": "農学部","z": "海洋政策科学部"
+//                                ]
+//                                let faculty = facultyMap[facultyCode] ?? "不明"
+//                                Text("(20\(yearPrefix)年度入学・\(faculty))")
+//                                    .font(.caption)
+//                                    .foregroundColor(.secondary)
+//                            } else {
+//                                Text("学籍番号エラー")
+//                                    .font(.caption)
+//                                    .foregroundColor(.red)
+//                            }
+//                        }
+//                    }
+//                    .padding(.vertical, 4)
+//                }
+//            }
+            
+            // 口コミセクション（置き換え）
+            Section(header: Text("口コミ")) {
+                if viewModel.reviews.isEmpty {
+                    Text("口コミはまだありません")
+                } else {
+                    // ✅ 統計カード全体をタップで ReviewsView へ
+                    NavigationLink {
+                        ReviewsView(
+                            viewModel: viewModel,
+                            year: year,
+                            quarter: quarter.replacingOccurrences(of: "Q", with: ""),
+                            lectureCode: lectureCode,
+                            currentStudentID: currentStudentID
+                        )
+                    } label: {
+                        ReviewStatsCard(viewModel: viewModel)   // 下で定義
                     }
+                    .buttonStyle(.plain)
                     .padding(.vertical, 4)
                 }
             }
+            
+            // ▼ 統計カードの直後に追加
+            let canPost = !currentStudentID.isEmpty &&
+                          !viewModel.reviews.contains { $0.student_id == currentStudentID }
+
+            if canPost {
+                AddReviewCard {
+                    isShowingReviewPost = true
+                }
+                .sheet(isPresented: $isShowingReviewPost, onDismiss: {
+                    Task {
+                        await viewModel.fetchReviews(
+                            year: year,
+                            quarter: quarter.replacingOccurrences(of: "Q", with: ""),
+                            lectureCode: lectureCode
+                        )
+                    }
+                }) {
+                    ReviewPostView(
+                        year: year,
+                        quarter: quarter.replacingOccurrences(of: "Q", with: ""),
+                        lectureCode: lectureCode
+                    )
+                }
+            }
+
+            // 自由記述コメント（最大3件、各3行、タップで詳細画面へ）
+            Section {
+                ForEach(viewModel.reviews.filter { !$0.freeComment.isEmpty }.prefix(3)) { review in
+                    NavigationLink {
+                        ReviewDetailView(review: review)  // 下で定義：単独表示
+                    } label: {
+                        ReviewRow(review: review, lineLimit: 3) // 下で定義
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.vertical, 4)
+                }
+            }
+            
+            
         }
         .navigationTitle("\(dayPeriod.prefix(1))曜 \(dayPeriod.suffix(1))限")
         .navigationBarTitleDisplayMode(.inline)
@@ -297,6 +359,119 @@ struct LectureDetailView: View {
                 )
             }
         }
+        .onDisappear {
+            NotificationCenter.default.post(name: .timetableDidChange, object: nil)
+        }
     }
 }
 
+
+// 統計カード（LectureDetailViewでもReviewsViewでも使い回し）
+struct ReviewStatsCard: View {
+    @ObservedObject var viewModel: LectureDetailViewModel
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("総合評価").fontWeight(.semibold)
+                Spacer()
+                HStack(spacing: 4) {
+                    StarRatingView(score: Float(viewModel.averageRating), starSize: 14, spacing: 2)
+                    Text(String(format: "%.1f", viewModel.averageRating))
+                }
+            }
+            HStack {
+                Text("楽単度").fontWeight(.semibold)
+                Spacer()
+                HStack(spacing: 4) {
+                    StarRatingView(score: Float(viewModel.averageEasyScore), starSize: 14, spacing: 2)
+                    Text(String(format: "%.1f", viewModel.averageEasyScore))
+                }
+            }
+            HStack {
+                Text("出欠確認").fontWeight(.semibold)
+                Spacer()
+                Text(topAttendanceLabel(counts: viewModel.attendanceFrequencyCounts))
+                    .foregroundColor(.primary)
+            }
+        }
+    }
+
+    private func topAttendanceLabel(counts: [String: Int]) -> String {
+        let options = ["毎回確認される", "ときどき確認される", "ほとんど確認されない", "出席確認なし"]
+        let top = options.max { (counts[$0] ?? 0) < (counts[$1] ?? 0) }
+        if let t = top, (counts[t] ?? 0) > 0 { return t }
+        return "データがありません"
+    }
+}
+
+
+
+// コメント1件の行表示（学籍/日付も表示、本文は行数制限可能）
+struct ReviewRow: View {
+    let review: Review
+    var lineLimit: Int? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // 1行目：評価
+            HStack {
+                Text("総合評価").font(.subheadline).foregroundColor(.secondary)
+                StarRatingView(score: Float(review.rating), starSize: 12, spacing: 1)
+                Spacer()
+                Text("楽単度").font(.subheadline).foregroundColor(.secondary)
+                StarRatingView(score: Float(review.easyScore), starSize: 12, spacing: 1)
+            }
+            // 本文
+            if !review.freeComment.isEmpty {
+                Text(review.freeComment)
+                    .font(.body)
+                    .lineLimit(lineLimit)
+                    .padding(.top, 2)
+            }
+            // メタ
+            HStack {
+                Text(review.createdAt, style: .date)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text(studentYearFaculty(review.student_id))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    private func studentYearFaculty(_ id: String) -> String {
+        guard id.count > 7 else { return "学籍番号エラー" }
+        let yearPrefix = id.prefix(2)
+        let i = id.index(id.startIndex, offsetBy: 7)
+        let code = String(id[i])
+        let map = [
+            "l": "文学部","c": "国際文化学部","d": "発達科学部",
+            "h": "国際人間科学部","j": "法学部","e": "経済学部",
+            "b": "経営学部","s": "理学部","m": "医学部",
+            "t": "工学部","a": "農学部","z": "海洋政策科学部"
+        ]
+        return "(20\(yearPrefix)年度入学・\(map[code] ?? "不明"))"
+    }
+}
+
+struct AddReviewCard: View {
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Image(systemName: "square.and.pencil")
+                    .imageScale(.large)
+                    .symbolRenderingMode(.monochrome)
+                Text("口コミを追加").bold()
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .foregroundStyle(.blue)
+            //.background(Color(.systemGray6))
+            .cornerRadius(10)
+        }
+        .buttonStyle(.plain)
+    }
+}

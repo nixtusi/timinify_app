@@ -74,7 +74,7 @@ class TimetableFetcher: ObservableObject {
         quarter: String = "1,2",
         startDate: String = "2025-04-01",
         endDate: String = "2025-08-30"
-    ) async {
+    ) async throws {
         isLoading = true
         errorMessage = nil
 
@@ -89,13 +89,15 @@ class TimetableFetcher: ObservableObject {
         let password = UserDefaults.standard.string(forKey: "loginPassword") ?? ""
 
         do {
-            let response = try await requestUribonet(
+        try Task.checkCancellation()   // ✅ 最初にチェック
+        let response = try await requestUribonet(
                 studentNumber: studentNumber,
                 password: password,
                 quarter: quarter,
                 startDate: startDate,
                 endDate: endDate
             )
+            try Task.checkCancellation()
 
             timetableItems = response.timetables.flatMap { (key, quarterData) in
                 let q = Int(key) ?? 1
@@ -106,6 +108,7 @@ class TimetableFetcher: ObservableObject {
                 }
             }
 
+            try Task.checkCancellation()   // ✅ Firestore書き込み前にも
             await uploadToFirestore(
                 studentNumber: studentNumber,
                 schedules: response.schedules
@@ -180,6 +183,9 @@ class TimetableFetcher: ObservableObject {
         let academicYear = "2025"
 
         for item in timetableItems {
+            if Task.isCancelled { return }        // ✅ 早期終了
+            try? Task.checkCancellation()
+        
             let rawRoom = schedules.first(where: { daySched in
                 daySched.schedule.contains(where: {
                     $0.period == item.period && $0.subject == item.title && $0.room != nil

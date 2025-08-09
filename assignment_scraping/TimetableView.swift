@@ -89,6 +89,16 @@ struct TimetableView: View {
                     await fetcher.loadFromFirestore(year: selectedYear, quarter: selectedQuarter)
                 }
             }
+            .onAppear {
+                Task {
+                    await fetcher.loadFromFirestore(year: selectedYear, quarter: selectedQuarter)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .timetableDidChange)) { _ in
+                Task {
+                    await fetcher.loadFromFirestore(year: selectedYear, quarter: selectedQuarter)
+                }
+            }
         }
     }
     
@@ -313,4 +323,9 @@ struct TimetableView: View {
         // .weekday は 1(日)〜7(土) → 月=2
         return weekdaySymbols[weekday - 1]
     }
+}
+
+extension Notification.Name {
+    /// 時間割（色など）の更新があったときに投げる通知
+    static let timetableDidChange = Notification.Name("timetableDidChange")
 }

@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var showingLogoutAlert = false
     @State private var resetMessage: String?
     @State private var showingResetAlert = false
+    @State private var showingResetConfirmAlert = false
     
     @State private var barcodeImage: UIImage? = nil
     @State private var isFetchingBarcode = false
@@ -26,12 +27,8 @@ struct SettingsView: View {
 
     var body: some View {
         ZStack {
-            Color(UIColor { trait in
-                trait.userInterfaceStyle == .dark
-                ? UIColor(red: 0.3, green: 0.25, blue: 0.2, alpha: 1.0) // ダーク時のベージュ風
-                : UIColor(red: 0.96, green: 0.93, blue: 0.86, alpha: 1.0) // 通常のベージュ
-            })
-            .ignoresSafeArea()
+            Color(UIColor.systemGroupedBackground)
+                .ignoresSafeArea()
 
             Form {
                 Section(header: Text("アカウント")) {
@@ -81,6 +78,24 @@ struct SettingsView: View {
                             .foregroundColor(.primary)
                     }
 
+                    Button {
+                        showingResetConfirmAlert = true
+                    } label: {
+                        Text("パスワードを変更")
+                    }
+                    .alert("パスワード変更のためのメールを送信しますか？", isPresented: $showingResetConfirmAlert) {
+                        Button("送信", role: .none) {
+                            sendPasswordResetEmail()
+                        }
+                        Button("キャンセル", role: .cancel) {}
+                    } message: {
+                        Text("※BEEF+ とは異なるパスワードでアカウントを作成してしまった場合のみ使用してください。")
+                    }
+
+//                    Text("BEEF+ と異なるパスワードで作成してしまった場合のみ使用してください。")
+//                        .font(.caption)
+//                        .foregroundColor(.secondary)
+
                     Button(role: .destructive) {
                         showingLogoutAlert = true
                     } label: {
@@ -102,6 +117,22 @@ struct SettingsView: View {
         .alert("ログアウトしますか？", isPresented: $showingLogoutAlert) {
             Button("ログアウト", role: .destructive, action: logout)
             Button("キャンセル", role: .cancel) {}
+        }
+    }
+
+    private func sendPasswordResetEmail() {
+        guard let email = Auth.auth().currentUser?.email, !email.isEmpty else {
+            self.resetMessage = "メールアドレスを確認できませんでした。再度ログインし直してください。"
+            self.showingResetAlert = true
+            return
+        }
+        Auth.auth().sendPasswordReset(withEmail: email) { error in
+            if let error = error {
+                self.resetMessage = "送信に失敗しました: \(error.localizedDescription)"
+            } else {
+                self.resetMessage = "\(email) にパスワード再設定用のメールを送信しました。受信トレイと迷惑メールをご確認ください。"
+            }
+            self.showingResetAlert = true
         }
     }
 

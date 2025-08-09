@@ -24,6 +24,10 @@ struct InitialSetupView: View {
     @State private var showSigninView = false
     @State private var showingTerms = false
     @State private var showingAlert = false
+    
+    @State private var didSendFirstEmail = false         // 🔺 初回送信済みフラグ
+    @State private var resendRemaining = 0               // 🔺 クールダウン残り秒（0で即時可）
+    @State private var resendTimer: Timer?               // 🔺 クールダウン用タイマー
 
     var body: some View {
         NavigationView {
@@ -38,7 +42,8 @@ struct InitialSetupView: View {
                     .frame(height: 48)
                     .background(Color(.systemGray6))
                     .cornerRadius(8)
-                    .autocapitalization(.none)
+                    .textInputAutocapitalization(.never)
+                    .disableAutocorrection(true)
                     .padding(.horizontal)
 
                 SecureField("パスワード", text: $password)
@@ -46,6 +51,8 @@ struct InitialSetupView: View {
                     .frame(height: 48)
                     .background(Color(.systemGray6))
                     .cornerRadius(8)
+                    .disableAutocorrection(true)
+                    .textInputAutocapitalization(.never)
                     .padding(.horizontal)
                 
                 HStack(spacing: 0) {
@@ -78,15 +85,26 @@ struct InitialSetupView: View {
                 .cornerRadius(8)
                 .disabled(studentNumber.isEmpty || password.isEmpty)
                 .padding(.horizontal)
-
-                // somewhere in body
-                .alert(isPresented: $showingAlert) {
-                    Alert(
-                        title: Text("確認メールを送信しました"),
-                        message: Text("\(studentNumber)@stu.kobe-u.ac.jp に確認メールを送信しました。\nメールをご確認ください。"),
-                        dismissButton: .default(Text("OK"))
-                    )
-                }
+                
+                 // 🔺 再送信ボタン（未確認時のみ表示）
+                 if shouldShowResendButton {
+                     HStack(spacing: 6) {
+                         Text("メールが届きませんか？")
+                             .font(.footnote)
+                             .foregroundColor(.secondary)
+                         Button(action: resendVerificationEmail) {
+                             Text(resendRemaining > 0 ? "メールを再送信（\(resendRemaining)s）" : "メールを再送信")
+                                 .font(.footnote.weight(.semibold))
+                                 .underline()
+                                 .foregroundColor(.blue)
+                         }
+                         .buttonStyle(PlainButtonStyle())
+                         .disabled(resendRemaining > 0)
+                     }
+                     .padding(.horizontal)
+                 }
+                
+                
 
                 if !message.isEmpty {
                     Text(message)
@@ -130,12 +148,19 @@ struct InitialSetupView: View {
             }
             .onDisappear {
                 timer?.invalidate()
+                resendTimer?.invalidate()   // 🔺クールダウンタイマーも止める
+                resendTimer = nil
             }
             .sheet(isPresented: $showingTerms) {
                 TermsView()
             }
             .onTapGesture {
                 UIApplication.shared.endEditing() //画面外をタップでキーボードを閉じる
+            }
+            .alert("確認メールを送信しました", isPresented: $showingAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("\(studentNumber)@stu.kobe-u.ac.jp に確認メールを送信しました。\nメールをご確認ください。")
             }
         }
     }
@@ -148,12 +173,15 @@ struct InitialSetupView: View {
                 return
             }
 
+            Auth.auth().languageCode = "ja" // 🔺日本語テンプレ（コンソール設定が必要）
             result?.user.sendEmailVerification { error in
                 if let error = error {
                     self.message = "認証メール送信エラー: \(error.localizedDescription)"
                 } else {
                     self.message = ""
                     self.showingAlert = true //アラートを表示
+                    self.didSendFirstEmail = true         // 🔺 再送信ボタンを出す
+                    self.startVerificationPolling()       // 🔺 確認完了ポーリング開始
                 }
             }
         }
@@ -161,19 +189,73 @@ struct InitialSetupView: View {
         
     }
 
-    private func resendVerificationEmail() {
-        Auth.auth().currentUser?.sendEmailVerification(completion: { error in
-            if let error = error {
-                self.message = "再送信エラー: \(error.localizedDescription)"
+    private func setCooldown(_ seconds: Int) {
+        self.resendRemaining = max(0, seconds)
+        self.resendTimer?.invalidate()
+        guard seconds > 0 else { return }
+        self.resendTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { t in
+            if self.resendRemaining > 0 {
+                self.resendRemaining -= 1
             } else {
-                self.message = "メールを再送しました"
+                t.invalidate()
             }
+        }
+    }
+
+    private func resendVerificationEmail() {
+        // 1) クールダウン中は何もしない
+        if self.resendRemaining > 0 { return }
+
+        // 2) 最新状態を確認（既に確認済みなら送らない）
+        Auth.auth().currentUser?.reload(completion: { reloadError in
+            if let reloadError = reloadError {
+                self.message = "状態更新エラー: \(reloadError.localizedDescription)"
+                // ネットワーク不調時などは短いクールダウン
+                self.setCooldown(60)
+                return
+            }
+
+            if Auth.auth().currentUser?.isEmailVerified == true {
+                self.message = "✅ すでにメール確認が完了しています。ログインしてください。"
+                self.didSendFirstEmail = false
+                return
+            }
+
+            // 3) まだ未確認 → 再送信
+            Auth.auth().currentUser?.sendEmailVerification(completion: { error in
+                if let error = error as NSError? {
+                    // エラーコードに応じて待ち時間を変える
+                    let code = AuthErrorCode(_bridgedNSError: error)?.code
+                    switch code {
+                    case .tooManyRequests:
+                        self.message = "送信が多すぎます。しばらく待ってから再度お試しください。"
+                        self.setCooldown(600) // 10分の待機
+                    case .networkError:
+                        self.message = "ネットワークエラー。接続を確認してから再度お試しください。"
+                        self.setCooldown(120) // 2分
+                    case .userDisabled:
+                        self.message = "このアカウントは無効化されています。"
+                        self.setCooldown(600)
+                    case .invalidRecipientEmail, .invalidSender, .invalidMessagePayload:
+                        self.message = "メール送信設定に問題があります。時間をおいてお試しください。"
+                        self.setCooldown(300)
+                    default:
+                        self.message = "再送信に失敗しました: \(error.localizedDescription)"
+                        self.setCooldown(180) // デフォルトの待機
+                    }
+                } else {
+                    self.message = "メールを再送信しました。受信トレイと迷惑メールをご確認ください。"
+                    self.showingAlert = true
+                    // 成功時のクールダウン（長め）
+                    self.setCooldown(180) // 3分
+                }
+            })
         })
     }
 
     private func startVerificationPolling() {
-        timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
+        self.timer?.invalidate()
+        self.timer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
             Auth.auth().currentUser?.reload(completion: { error in
                 if let error = error {
                     self.message = "確認エラー: \(error.localizedDescription)"
@@ -181,17 +263,21 @@ struct InitialSetupView: View {
                 }
 
                 if Auth.auth().currentUser?.isEmailVerified == true {
-                    timer?.invalidate()
-                    saveUserInfoToFirestore()
+                    self.timer?.invalidate()
+                    // 🔺 確認完了時に再送信UI/タイマーもクリア
+                    self.didSendFirstEmail = false
+                    self.resendTimer?.invalidate()
+                    self.resendRemaining = 0
+                    self.saveUserInfoToFirestore()
 
-                    UserDefaults.standard.set(studentNumber, forKey: "studentNumber")
-                    UserDefaults.standard.set(password, forKey: "loginPassword")
+                    UserDefaults.standard.set(self.studentNumber, forKey: "studentNumber")
+                    UserDefaults.standard.set(self.password, forKey: "loginPassword")
 
                     self.message = "✅ メール確認が完了しました。ログインしてください。"
                     self.isVerifying = false
                     self.showConfirmationAlert = false
                     self.isRegistered = true
-                    appState.studentNumber = studentNumber
+                    self.appState.studentNumber = self.studentNumber
                 }
             })
         }
@@ -229,5 +315,12 @@ extension Color {
         let b = Double(rgb & 0xFF) / 255.0
 
         self.init(red: r, green: g, blue: b)
+    }
+}
+
+extension InitialSetupView {
+    /// 🔺再送信リンクの表示条件：初回送信後のみ表示
+    var shouldShowResendButton: Bool {
+        return didSendFirstEmail
     }
 }

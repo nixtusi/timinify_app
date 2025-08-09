@@ -77,12 +77,6 @@ struct SyllabusDetailView: View {
                         sectionView(title: "今年度の工夫", content: improv)
                     }
                     
-//                    //機能してる？
-//                    if let textbooks = syllabus.textbooks {
-//                        let textbookText = textbooks.map { $0.displayText }.joined(separator: "\n")
-//                        sectionView(title: "教科書", content: textbookText)
-//                    }
-                    
                     // ✅ ここ差し替え（元の joined してた箇所を削除して↓に）
                     if let textbooks = syllabus.textbooks, !textbooks.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
