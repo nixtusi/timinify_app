@@ -67,7 +67,11 @@ struct TaskListView: View {
                         if !fetcher.tasks.isEmpty || fetcher.lastUpdated != nil || fetcher.isLoading || fetcher.infoMessage != nil {
                             HStack(spacing: 8) {
                                 if let updated = fetcher.lastUpdated {
-                                    Text("最終更新 \(formattedDate(updated))")
+                                    if Date().timeIntervalSince(updated) > 24*60*60 {
+                                        Text("最終更新 24時間以上前")
+                                    } else {
+                                        Text("最終更新 \(formattedDate(updated))")
+                                    }
                                 }
                                 if fetcher.isLoading {
                                     Text("最新データ取得中…")
