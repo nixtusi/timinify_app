@@ -89,8 +89,13 @@ class BarcodeManager {
     }
 
     //ファイル保存先（非表示領域）
+//    private func imageFilePath() -> URL {
+//        let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.yuta-nishimatsu.assignment-scraping")!
+//            return container.appendingPathComponent(barcodeImageFileName)
+//    }
+    
     private func imageFilePath() -> URL {
-        let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.yuta-nishimatsu.assignment-scraping")!
+        let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.yuta.beefapp")!
             return container.appendingPathComponent(barcodeImageFileName)
     }
 }
