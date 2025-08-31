@@ -299,6 +299,8 @@ struct InitialSetupView: View {
                 print("Firestoreにユーザー情報を保存しました")
             }
         }
+        
+        
     }
 }
 
