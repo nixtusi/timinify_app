@@ -21,6 +21,7 @@ struct SigninView: View {
     @State private var resendTimer: Timer?
     
     @State private var showInitialSetupView = false //画面遷移トリガー
+    @State private var showSetupFlowView = false
 
     var body: some View {
         NavigationView {
@@ -122,14 +123,24 @@ struct SigninView: View {
                 }
                 .padding(.bottom)
 
-                //.fullScreenCover は VStack全体に適用
-                .fullScreenCover(isPresented: $showInitialSetupView) {
-                    InitialSetupView(onComplete: onComplete)
-                }
+                
+                
             }
             .padding()
             .navigationBarHidden(true)
             .navigationBarBackButtonHidden(true)
+            //.fullScreenCover は VStack全体に適用
+            .fullScreenCover(isPresented: $showInitialSetupView) {
+                InitialSetupView(onComplete: onComplete)
+            }
+            
+            .fullScreenCover(isPresented: $showSetupFlowView) {
+                SetupFlowView {
+                    // 「次へ」 or 「スキップ」で呼ばれる
+                    showSetupFlowView = false
+                    onComplete()
+                }
+            }
             .onTapGesture {
                 UIApplication.shared.endEditing() //キーボード外をタップでキーボードを閉じる
             }
@@ -171,9 +182,10 @@ struct SigninView: View {
                         // 保存と状態更新
                         UserDefaults.standard.set(self.studentID, forKey: "studentNumber")
                         UserDefaults.standard.set(self.password, forKey: "loginPassword")
-                        self.appState.isLoggedIn = true
                         self.appState.studentNumber = self.studentID
-                        self.onComplete()
+                        //self.onComplete()
+                        //self.showSetupFlowView = true // ✅ ここでセットアップ画面へ
+                        self.showSetupFlowView = true
                     } else {
                         // メール未認証 → ログアウトして再送UIを出す
                         self.errorMessage = "メール認証がまだ完了していません。受信トレイ（迷惑メール含む）をご確認ください。"

@@ -2,8 +2,9 @@
 //  TimetableLocalStore.swift
 //  assignment_scraping
 //
-//  目的: TimetableFetcher が UserDefaults("cachedTimetableItems") に保存済みの
-//       ローカル時間割を読み出して表示に供し、必要に応じてウィジェットへ連携する。
+//  目的:
+//   - 年度+クォーターごとにローカルへ保存された時間割を読み出す
+//   - 今日の時間割を App Group 経由でウィジェットへ連携する
 //  注意: Firebase/Firestore へは一切アクセスしません。
 //  作成日: 2025/09/22
 //
@@ -14,23 +15,23 @@ import WidgetKit
 @MainActor
 final class TimetableLocalStore: ObservableObject {
 
-    // ✅ 変更: TimetableItem は TimetableFetcher.swift の既存定義を使用（このファイルでは再定義しない）
+    // TimetableItem は TimetableFetcher.swift の既存定義を利用（再定義しない）
     @Published var items: [TimetableItem] = []
-
     @Published var errorMessage: String?
 
-    // TimetableFetcher.saveToLocal() と同じキー
-    private let localKey = "cachedTimetableItems"
+    // 年度+Qごとの保存キー（TimetableFetcher と揃える）
+    private func localKey(year: Int, quarter: Int) -> String {
+        "cachedTimetableItems_\(year)_Q\(quarter)"
+    }
 
     // App Group（Widget共有）
     private enum WGKeys {
-        static let appGroup = "group.com.yuta.beefapp"   // ✅ 変更: あなたの App Group に合わせてください
-        static let storeKey = "widgetTimetableToday"
-        static let widgetKind = "TimetableWidgetKind"     // ✅ 変更: ウィジェットの kind と一致させる
+        static let appGroup  = "group.com.yuta.beefapp"   // ← あなたの App Group ID
+        static let storeKey  = "widgetTimetableToday"
+        static let widgetKind = "TimimetableWidgetKind"   // ← Widget 側の kind と一致させる
     }
 
-    // ✅ 変更: Widget 連携用の構造体は重複を避けるため、名前を "WidgetLecture" に変更
-    //         （型名はJSONに含まれないため、Widget側の SharedLecture と互換です）
+    // ウィジェットへ渡す軽量ペイロード（Widget 側の SharedLecture と互換）
     private struct WidgetLecture: Codable, Identifiable {
         var id: String { code + String(period) }
         let code: String
@@ -44,21 +45,22 @@ final class TimetableLocalStore: ObservableObject {
 
     // MARK: - 公開API
 
-    /// ローカル（UserDefaults.standard）から時間割を読み込み、`items` に反映します。
-    /// TimetableFetcher.saveToLocal() 済みのデータのみを対象とします。
-    func loadFromLocal() {
+    /// 指定の 年度+Q でローカル保存された時間割を読み込み、`items` に反映
+    func loadFromLocal(year: Int, quarter: Int) {
         errorMessage = nil
-        guard let data = UserDefaults.standard.data(forKey: localKey) else {
+        let key = localKey(year: year, quarter: quarter)
+
+        guard let data = UserDefaults.standard.data(forKey: key) else {
             self.items = []
-            self.errorMessage = "ローカルの時間割データが見つかりません。"
-            print("⚠️ ローカルデータなし (\(localKey))")
+            self.errorMessage = "ローカルの時間割が見つかりません (\(year) Q\(quarter))"
+            print("⚠️ ローカルデータなし (\(key))")
             return
         }
 
         do {
             let decoded = try JSONDecoder().decode([TimetableItem].self, from: data)
             self.items = decoded
-            print("✅ ローカルから時間割を読み込みました: \(decoded.count)件")
+            print("✅ ローカル読込 (\(year) Q\(quarter)): \(decoded.count)件")
         } catch {
             self.items = []
             self.errorMessage = "ローカルデータの読み込みに失敗しました。"
@@ -66,7 +68,7 @@ final class TimetableLocalStore: ObservableObject {
         }
     }
 
-    /// 今日の時間割（曜日一致かつ period 昇順）を返します。
+    /// 今日の時間割（曜日一致かつ period 昇順）
     func todaysLectures() -> [TimetableItem] {
         let today = Self.weekdayJP(Date())
         return items
@@ -74,7 +76,7 @@ final class TimetableLocalStore: ObservableObject {
             .sorted { $0.period < $1.period }
     }
 
-    /// ウィジェットへ「今日の時間割」を公開します（App Group 経由）。
+    /// いま `items` に載っているデータを元に、ウィジェットへ「今日の時間割」を公開
     func publishTodayToWidget() {
         let todays = todaysLectures()
         let payload: [WidgetLecture] = todays.map {
@@ -89,15 +91,23 @@ final class TimetableLocalStore: ObservableObject {
             )
         }
 
-        guard let data = try? JSONEncoder().encode(payload),
-              let ud = UserDefaults(suiteName: WGKeys.appGroup) else {
-            print("❌ App Group への保存に失敗（suiteNameや権限をご確認ください）")
+        guard
+            let data = try? JSONEncoder().encode(payload),
+            let ud = UserDefaults(suiteName: WGKeys.appGroup)
+        else {
+            print("❌ App Group への保存に失敗（suiteNameや権限を確認）")
             return
         }
 
         ud.set(data, forKey: WGKeys.storeKey)
         WidgetCenter.shared.reloadTimelines(ofKind: WGKeys.widgetKind)
         print("📤 Widgetへ今日の時間割を公開: \(payload.count)件")
+    }
+
+    /// まとめて: ローカル（指定の 年度+Q）→読込→ウィジェット公開
+    func syncWidgetFromLocal(year: Int, quarter: Int) {
+        loadFromLocal(year: year, quarter: quarter)
+        publishTodayToWidget()
     }
 
     // MARK: - ユーティリティ
@@ -115,7 +125,7 @@ final class TimetableLocalStore: ObservableObject {
         }
     }
 
-    /// 時限→開始時刻（TimetableView の表示に合わせています）
+    /// 時限→開始時刻（アプリ表示に合わせる）
     private static func periodToStart(_ p: Int) -> String {
         switch p {
         case 1: return "08:50"
@@ -127,7 +137,7 @@ final class TimetableLocalStore: ObservableObject {
         }
     }
 
-    /// 時限→終了時刻（TimetableView の表示に合わせています）
+    /// 時限→終了時刻（アプリ表示に合わせる）
     private static func periodToEnd(_ p: Int) -> String {
         switch p {
         case 1: return "10:20"

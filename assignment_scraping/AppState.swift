@@ -12,6 +12,8 @@ import Foundation
 class AppState: ObservableObject {
     @Published var isLoggedIn: Bool = false
     @Published var studentNumber: String = ""
+    
+    @Published var startFromSettings: Bool = false //追加
 
     init() {
         checkLoginStatus()
