@@ -8,6 +8,7 @@
 
 import SwiftUI
 import FirebaseAuth
+import FirebaseFirestore
 
 struct DataUpdateView: View {
     @State private var isUpdating = false
@@ -27,14 +28,82 @@ struct DataUpdateView: View {
         return email.replacingOccurrences(of: "@stu.kobe-u.ac.jp", with: "")
     }
 
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                Text("データ更新について")
-                    .font(.title2)
-                    .bold()
+    private let calendar = Calendar(identifier: .gregorian)
 
-                Text("""
+    private func isLeapYear(_ year: Int) -> Bool {
+        if year % 400 == 0 { return true }
+        if year % 100 == 0 { return false }
+        return year % 4 == 0
+    }
+    private func ymd(_ y: Int, _ m: Int, _ d: Int) -> String {
+        String(format: "%04d-%02d-%02d", y, m, d)
+    }
+    private func academicYear(for date: Date) -> Int {
+        let comps = calendar.dateComponents([.year, .month], from: date)
+        guard let year = comps.year, let month = comps.month else { return 0 }
+        // 3月〜8月はその年が学年、9月〜翌2月は9月の年が学年
+        if (3...8).contains(month) { return year }
+        if (9...12).contains(month) { return year }
+        // 1〜2月は前年の学年に属する
+        return year - 1
+    }
+    private func computeDefaultWindow(today: Date) -> (ay: Int, start: String, end: String, quarters: String) {
+        let comps = calendar.dateComponents([.year, .month], from: today)
+        let year = comps.year ?? 0
+        let month = comps.month ?? 1
+        let ay = academicYear(for: today)
+
+        if (3...8).contains(month) {
+            // Q1, Q2 within same academic year
+            let start = ymd(ay, 4, 1)
+            let end = ymd(ay, 8, 30)
+            return (ay, start, end, "1,2")
+        } else if (9...12).contains(month) {
+            // Q3, Q4 spanning into next calendar year
+            let endFeb = isLeapYear(ay + 1) ? 29 : 28
+            let start = ymd(ay, 9, 1)
+            let end = ymd(ay + 1, 2, endFeb)
+            return (ay, start, end, "3,4")
+        } else {
+            // Jan-Feb belong to previous academic year's Q3/Q4
+            let endFeb = isLeapYear(year) ? 29 : 28 // year here is the current calendar year which equals (ay+1)
+            let start = ymd(ay, 9, 1)
+            let end = ymd(ay + 1, 2, endFeb)
+            return (ay, start, end, "3,4")
+        }
+    }
+    private func entranceYear(from studentNumber: String) -> Int? {
+        let prefix = String(studentNumber.prefix(2))
+        guard let two = Int(prefix) else { return nil }
+        return 2000 + two
+    }
+    private func hasQ1Q2Data(studentNumber: String, academicYear ay: Int) async -> Bool {
+        guard let ent = entranceYear(from: studentNumber) else { return false }
+        let db = Firestore.firestore()
+
+        // paths like: /Timetable/{entranceYear}/{studentNumber}/{ay}/Q1 and Q2
+        let base = db.collection("Timetable").document("\(ent)").collection(studentNumber).document("\(ay)")
+        do {
+            let q1Snap = try await base.collection("Q1").limit(to: 1).getDocuments()
+            if !q1Snap.documents.isEmpty { return true }
+            let q2Snap = try await base.collection("Q2").limit(to: 1).getDocuments()
+            return !q2Snap.documents.isEmpty
+        } catch {
+            return false
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            Color(UIColor.systemGray6)
+                .ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("データ更新について")
+                        .font(.title2)
+                        .bold()
+
+                    Text("""
 この処理では以下のデータを取得します：
 ・時間割情報(今年度分のみ)
 ・図書館入館証（バーコード）
@@ -42,54 +111,54 @@ struct DataUpdateView: View {
 ※この処理には約1分程度かかります。
 ※更新中は他の画面に移動しないようにしてください。
 """)
-                    .font(.body)
+                        .font(.body)
 
-                if isUpdating {
-                    VStack(spacing: 16) {
-                        ProgressView(value: updateProgress)
-                            .progressViewStyle(LinearProgressViewStyle())
-                            .padding(.vertical)
+                    if isUpdating {
+                        VStack(spacing: 16) {
+                            ProgressView(value: updateProgress)
+                                .progressViewStyle(LinearProgressViewStyle())
+                                .padding(.vertical)
 
-                        Text("更新中です… 他の画面に移動しないでください。")
-                            .font(.footnote)
-                            .foregroundColor(.secondary)
+                            Text("更新中です… 他の画面に移動しないでください。")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
 
-                        // ✅ 追加：キャンセルボタン
-                        Button(role: .destructive) {
-                            cancelUpdate()
-                        } label: {
-                            Text("キャンセル")
+                            // ✅ 追加：キャンセルボタン
+                            Button(role: .destructive) {
+                                cancelUpdate()
+                            } label: {
+                                Text("キャンセル")
+                                    .bold()
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color(.systemRed))
+                                    .foregroundColor(.white)
+                                    .cornerRadius(10)
+                            }
+                        }
+                    } else if updateCompleted {
+                        Label("データ更新が完了しました", systemImage: "checkmark.circle")
+                            .foregroundColor(.green)
+                            .font(.headline)
+                    } else if let error = errorMessage {
+                        Label("更新中にエラーが発生しました: \(error)", systemImage: "xmark.octagon")
+                            .foregroundColor(.red)
+                            .font(.headline)
+                    } else {
+                        Button(action: startUpdate) {
+                            Text("更新を開始する")
                                 .bold()
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(Color(.systemRed))
+                                .background(Color(hex: "#4B3F96"))
                                 .foregroundColor(.white)
                                 .cornerRadius(10)
                         }
                     }
-                } else if updateCompleted {
-                    Label("データ更新が完了しました", systemImage: "checkmark.circle")
-                        .foregroundColor(.green)
-                        .font(.headline)
-                } else if let error = errorMessage {
-                    Label("更新中にエラーが発生しました: \(error)", systemImage: "xmark.octagon")
-                        .foregroundColor(.red)
-                        .font(.headline)
-                } else {
-                    Button(action: startUpdate) {
-                        Text("更新を開始する")
-                            .bold()
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color(hex: "#4B3F96"))
-                            .foregroundColor(.white)
-                            .cornerRadius(10)
-                    }
                 }
+                .padding()
             }
-            .padding()
         }
-        .background(Color(UIColor.systemGray6))
         .navigationTitle("データ更新")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -111,14 +180,20 @@ struct DataUpdateView: View {
         updateTask?.cancel()
         updateTask = Task {
             do {
-                let startDate = "2025-04-01"
-                let endDate   = "2025-08-30"
+                var window = computeDefaultWindow(today: Date())
+                let hasEarly = await hasQ1Q2Data(studentNumber: studentNumber, academicYear: window.ay)
+                if !hasEarly {
+                    let endFeb = isLeapYear(window.ay + 1) ? 29 : 28
+                    window.start = ymd(window.ay, 4, 1)
+                    window.end = ymd(window.ay + 1, 2, endFeb)
+                    window.quarters = "1,2,3,4"
+                }
 
                 // ❗️フェッチ側もキャンセル協調が必要（下で解説）
                 try await fetcher.fetchAndUpload(
-                    quarter: "1,2",
-                    startDate: startDate,
-                    endDate: endDate
+                    quarter: window.quarters,
+                    startDate: window.start,
+                    endDate: window.end
                 )
 
                 try Task.checkCancellation() // ✅ 途中でキャンセルされたらここで throw

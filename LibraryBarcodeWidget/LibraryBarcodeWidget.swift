@@ -37,7 +37,6 @@ struct LibraryBarcodeWidgetEntryView: View {
 
     var body: some View {
         ZStack {
-            Color.white
             if let image = entry.image {
                 Image(uiImage: image)
                     .resizable()
@@ -49,6 +48,7 @@ struct LibraryBarcodeWidgetEntryView: View {
                     .font(.caption)
             }
         }
+        .containerBackground(Color.white, for: .widget)
     }
 }
 
@@ -60,7 +60,7 @@ struct LibraryBarcodeWidget: Widget {
             LibraryBarcodeWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("図書館入館証")
-        .description("保存されたバーコード画像を表示します。")
-        .supportedFamilies([.systemSmall])
+        .description("図書館へ入館するためのバーコードを常に表示します。")
+        .supportedFamilies([.systemMedium])
     }
 }

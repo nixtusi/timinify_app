@@ -82,7 +82,9 @@ struct TaskListView: View {
                             .padding(.bottom, 12)
                         }
 
-                        // （任意）エラー表示
+                        // ❌（削除方針）従来の赤字テキストによるエラー表示は不要に
+                        // ✅ 変更: アラートに一本化するためコメントアウト
+                        /*
                         if let error = fetcher.errorMessage, !error.isEmpty {
                             Text(error)
                                 .font(.footnote)
@@ -90,6 +92,7 @@ struct TaskListView: View {
                                 .padding(.horizontal)
                                 .padding(.bottom, 12)
                         }
+                        */
                     }
                     .padding(.top)
                 }
@@ -106,6 +109,19 @@ struct TaskListView: View {
                 fetcher.fetchTasksFromAPI()
                 WidgetCenter.shared.reloadAllTimelines()
             }
+        }
+        // ✅ 変更: アラート追加（サーバー停止メッセージを優先表示）
+        .alert(isPresented: $fetcher.showErrorAlert) {
+            let title = fetcher.isServerDown ? "サーバー停止中" : "エラー"
+            let message = fetcher.isServerDown
+            ? (fetcher.errorMessage ?? "サーバーが停止しているため新たな課題取得をできません。時間をおいて再度お試しください。")
+            : (fetcher.errorMessage ?? "不明なエラーが発生しました。")
+
+            return Alert(
+                title: Text(title),
+                message: Text(message),
+                dismissButton: .default(Text("OK"))
+            )
         }
     }
 }

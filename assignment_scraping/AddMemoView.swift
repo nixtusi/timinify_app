@@ -14,13 +14,18 @@ struct AddMemoView: View {
 
     var body: some View {
         NavigationStack {
-            VStack {
-                TextEditor(text: $text)
-                    .padding()
-                    .border(Color.gray, width: 1)
-                    .frame(minHeight: 200)
+            ZStack {
+                VStack {
+                    TextEditor(text: $text)
+                        .padding()
+                        .border(Color.gray, width: 1)
+                        .frame(minHeight: 200)
 
-                Spacer()
+                    Spacer()
+                }
+            }
+            .onTapGesture {
+                UIApplication.shared.endEditing()
             }
             .padding()
             .navigationTitle("メモを追加")

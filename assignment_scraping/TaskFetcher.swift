@@ -10,35 +10,48 @@ import Combine
 import WidgetKit
 import FirebaseAuth
 
+@MainActor // ✅ 変更: UI更新の一貫性を担保
 class TaskFetcher: ObservableObject {
     @Published var tasks: [BeefTask] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var success: Bool? = nil
     @Published var lastUpdated: Date? = nil
-
-    // ✅ 変更: 空表示用のメッセージをUIへ渡すためのプロパティを追加
     @Published var infoMessage: String? = nil
 
-    private let storageKey = "savedTasks"
-    // ✅ 変更: 実運用のエンドポイントに合わせてURLを修正（ユーザーのcurl例と一致）
-    private let apiURL = URL(string: "https://api.timinify.com/beefplus")!
-    private let lastUpdatedKey = "lastUpdatedTime"
+    // ✅ 変更: アラート表示トリガ（UI側で .alert にバインド）
+    @Published var showErrorAlert: Bool = false
 
-    init() {
+    // ✅ 変更: サーバーダウンをUIでも判定できるように
+    @Published var isServerDown: Bool = false
+
+    private enum Keys {
+        static let storageKey = "savedTasks"
+        static let lastUpdatedKey = "lastUpdatedTime"
+        static let appGroupSuite = "group.com.yuta.beefapp"
+        static let widgetTasksKey = "widgetTasks"
+        static let widgetLastUpdatedKey = "widgetLastUpdated"
+        static let apiURLString = "https://api.timinify.com/beefplus"
+    }
+
+    private let apiURL = URL(string: Keys.apiURLString)!
+    private let urlSession: URLSession
+
+    init(session: URLSession = .shared) {
+        self.urlSession = session
         loadSavedTasks()
-        self.lastUpdated = UserDefaults.standard.object(forKey: lastUpdatedKey) as? Date
+        self.lastUpdated = UserDefaults.standard.object(forKey: Keys.lastUpdatedKey) as? Date
     }
 
     // 保存済み課題を読み込む
     func loadSavedTasks() {
-        if let data = UserDefaults.standard.data(forKey: storageKey),
+        if let data = UserDefaults.standard.data(forKey: Keys.storageKey),
            let decoded = try? JSONDecoder().decode([BeefTask].self, from: data) {
             self.tasks = decoded
         }
     }
 
-    // APIから課題を取得
+    // MARK: - 課題取得（従来版・リトライ付き）
     func fetchTasksFromAPI(retryCount: Int = 2) {
         loadSavedTasks()
 
@@ -48,7 +61,10 @@ class TaskFetcher: ObservableObject {
         let password = UserDefaults.standard.string(forKey: "loginPassword") ?? ""
 
         guard !studentNumber.isEmpty, !password.isEmpty else {
-            self.errorMessage = "ログイン情報が未設定です"
+            // ✅ 変更: アラート表示も同時に
+            self.errorMessage = "ログイン情報が未設定です。設定画面から学籍番号・パスワードを登録してください。"
+            self.isServerDown = false // ✅ 変更: サーバーダウン扱いではない
+            self.showErrorAlert = true
             return
         }
 
@@ -57,50 +73,88 @@ class TaskFetcher: ObservableObject {
         if retryCount == 2 {
             isLoading = true
             errorMessage = nil
-            infoMessage = nil // ✅ 変更: 取得開始時に文言を一旦クリア
+            infoMessage = nil
+            isServerDown = false // ✅ 変更: 開始時リセット
         }
 
         var request = URLRequest(url: apiURL, timeoutInterval: 15)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        // JSONSerializationでエンコード（Codable不可）
         let requestBody: [String: String] = [
             "student_number": studentNumber,
             "password": password
         ]
         request.httpBody = try? JSONSerialization.data(withJSONObject: requestBody, options: [])
 
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            DispatchQueue.main.async {
+        urlSession.dataTask(with: request) { [weak self] data, response, error in
+            Task { @MainActor in
+                guard let self = self else { return }
+
+                // ---- (1) 通信レベルのエラー ----
                 if let error = error {
-                    // 取得失敗 → 今までどおり（リトライ→最終的にエラー、最終更新は変えない）
                     if retryCount > 0 {
+                        // ✅ 変更: 指数バックオフ
+                        let delay: Double = pow(2.0, Double(2 - retryCount)) * 0.8
+                        await self.sleep(seconds: delay)
                         self.fetchTasksFromAPI(retryCount: retryCount - 1)
                     } else {
                         self.success = false
                         self.isLoading = false
+                        self.isServerDown = false // ✅ 変更
                         self.errorMessage = "通信エラー: \(error.localizedDescription)"
+                        self.showErrorAlert = true // ✅ 変更: アラート表示
                     }
                     return
                 }
 
-                guard let data = data else {
+                // ---- (2) HTTPステータス判定 ----
+                if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                    // ✅ 変更: 530（ご提示ログ）や503/502等を「サーバー停止」とみなす
+                    let status = http.statusCode
+                    let consideredServerDown = (status == 530) || (status == 503) || (status == 502) || (status == 504)
+                    if retryCount > 0, (500...599).contains(status) {
+                        // 5xx は再試行（最終的にダメなら下でアラート）
+                        let delay: Double = pow(2.0, Double(2 - retryCount)) * 0.8
+                        await self.sleep(seconds: delay)
+                        self.fetchTasksFromAPI(retryCount: retryCount - 1)
+                        return
+                    }
+                    self.success = false
+                    self.isLoading = false
+
+                    if consideredServerDown {
+                        // ✅ 変更: サーバーダウン専用メッセージ＆フラグ
+                        self.isServerDown = true
+                        self.errorMessage = "サーバーが停止しているため新たな課題取得をできません。時間をおいて再度お試しください。（HTTP \(status)）"
+                    } else {
+                        self.isServerDown = false
+                        self.errorMessage = "取得失敗（HTTP \(status)）: サービスが一時的に利用できない可能性があります。"
+                    }
+                    // ✅ 変更: 失敗時は最終更新を変更しない（仕様維持）
+                    self.showErrorAlert = true
+                    return
+                }
+
+                // ---- (3) データ有無 ----
+                guard let data = data, !data.isEmpty else {
                     if retryCount > 0 {
+                        let delay: Double = pow(2.0, Double(2 - retryCount)) * 0.8
+                        await self.sleep(seconds: delay)
                         self.fetchTasksFromAPI(retryCount: retryCount - 1)
                     } else {
                         self.success = false
                         self.isLoading = false
-                        self.errorMessage = "データが取得できませんでした"
+                        self.isServerDown = false // ✅ 変更
+                        self.errorMessage = "データが取得できませんでした。"
+                        self.showErrorAlert = true
                     }
                     return
                 }
 
-                // ---- デコードフロー1: {"tasks":[...]} 形式 ----
+                // ---- (4) JSON デコード1: {"tasks":[...]} ----
                 do {
-                    struct ResponseWrapper: Decodable {
-                        let tasks: [BeefTask]
-                    }
+                    struct ResponseWrapper: Decodable { let tasks: [BeefTask] }
                     let decodedResponse = try JSONDecoder().decode(ResponseWrapper.self, from: data)
                     let decodedTasks = decodedResponse.tasks
 
@@ -109,28 +163,19 @@ class TaskFetcher: ObservableObject {
                     NotificationManager.shared.scheduleNotifications(for: decodedTasks)
                     self.success = true
                     self.isLoading = false
+                    self.isServerDown = false // ✅ 変更
 
                     if decodedTasks.isEmpty {
-                        // ✅ 変更: tasksが空配列でも「未提出...」を表示し、最終更新時間を更新する方針に統一
                         self.infoMessage = "未提出の課題・テスト一覧はありません。"
-                        self.lastUpdated = Date() // ✅ 変更: 更新する
-                        UserDefaults.standard.set(self.lastUpdated, forKey: self.lastUpdatedKey)
-                        UserDefaults(suiteName: "group.com.yuta.beefapp")?.set(self.lastUpdated, forKey: "widgetLastUpdated")
                     } else {
                         self.infoMessage = nil
-                        self.lastUpdated = Date() // ✅ 変更: 1件以上なら更新
-                        UserDefaults.standard.set(self.lastUpdated, forKey: self.lastUpdatedKey)
-                        UserDefaults(suiteName: "group.com.yuta.beefapp")?.set(self.lastUpdated, forKey: "widgetLastUpdated")
                     }
-
-                    print("✅ 課題取得成功（\(decodedTasks.count)件）")
-                    if let updated = self.lastUpdated {
-                        print("🕒 最終更新: \(updated)")
-                    }
+                    self.updateLastUpdated() // ✅ 変更: 0件でも更新
+                    self.logSuccess(count: decodedTasks.count)
                     return
 
                 } catch {
-                    // ---- デコードフロー2: {"message":"未提出の課題・テスト一覧はありません。"} 形式 ----
+                    // ---- (5) JSON デコード2: {"message":"未提出..."} ----
                     do {
                         struct MessageResponse: Decodable { let message: String }
                         let msg = try JSONDecoder().decode(MessageResponse.self, from: data)
@@ -140,31 +185,26 @@ class TaskFetcher: ObservableObject {
                         NotificationManager.shared.scheduleNotifications(for: [])
                         self.success = true
                         self.isLoading = false
+                        self.isServerDown = false // ✅ 変更
 
-                        // ✅ 変更: ご指定の仕様に合わせて最終更新も更新
                         self.infoMessage = msg.message.isEmpty ? "未提出の課題・テスト一覧はありません。" : msg.message
-                        self.lastUpdated = Date() // ✅ 変更: 更新する
-                        UserDefaults.standard.set(self.lastUpdated, forKey: self.lastUpdatedKey)
-                        UserDefaults(suiteName: "group.com.yuta.beefapp")?.set(self.lastUpdated, forKey: "widgetLastUpdated")
-
-                        print("✅ 課題0件（サーバーメッセージ）")
-                        if let updated = self.lastUpdated {
-                            print("🕒 最終更新: \(updated)")
-                        }
+                        self.updateLastUpdated() // ✅ 変更
+                        self.logSuccess(count: 0, zeroByMessage: true)
                         return
 
                     } catch {
-                        // ---- デコード失敗（その他エラー文など）→ 今までどおり、最終更新は変更しない ----
+                        // ---- (6) 想定外データ（HTML等）→ 失敗。最終更新は変更しない ----
                         if retryCount > 0 {
+                            let delay: Double = pow(2.0, Double(2 - retryCount)) * 0.8
+                            await self.sleep(seconds: delay)
                             self.fetchTasksFromAPI(retryCount: retryCount - 1)
                         } else {
                             self.success = false
                             self.isLoading = false
+                            self.isServerDown = false // ✅ 変更
                             let responseStr = String(data: data, encoding: .utf8) ?? "不明なデータ"
                             self.errorMessage = "デコード失敗: \(responseStr)"
-                        }
-                        if let httpResponse = response as? HTTPURLResponse {
-                            print("🌐 ステータスコード: \(httpResponse.statusCode)")
+                            self.showErrorAlert = true
                         }
                     }
                 }
@@ -172,21 +212,42 @@ class TaskFetcher: ObservableObject {
         }.resume()
     }
 
-    // ローカル保存
+    // MARK: - 共通ユーティリティ
+
+    private func updateLastUpdated() {
+        let now = Date()
+        self.lastUpdated = now
+        UserDefaults.standard.set(now, forKey: Keys.lastUpdatedKey)
+        if let sharedDefaults = UserDefaults(suiteName: Keys.appGroupSuite) {
+            sharedDefaults.set(now, forKey: Keys.widgetLastUpdatedKey)
+        }
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    private func logSuccess(count: Int, zeroByMessage: Bool = false) {
+        print("✅ 課題取得成功（\(count)件）" + (zeroByMessage ? "（サーバーメッセージ）" : ""))
+        if let updated = self.lastUpdated {
+            print("🕒 最終更新: \(updated)")
+        }
+    }
+
     private func saveTasksToLocal(_ tasks: [BeefTask]) {
-        // メインアプリ用
         if let data = try? JSONEncoder().encode(tasks) {
-            UserDefaults.standard.set(data, forKey: storageKey)
+            UserDefaults.standard.set(data, forKey: Keys.storageKey)
         }
 
-        // ウィジェット用（App Group）
         let sharedTasks = tasks.map {
             SharedTask(title: $0.title, deadline: $0.deadline, url: $0.url)
         }
         if let sharedData = try? JSONEncoder().encode(sharedTasks),
-           let sharedDefaults = UserDefaults(suiteName: "group.com.yuta.beefapp") {
-            sharedDefaults.set(sharedData, forKey: "widgetTasks")
+           let sharedDefaults = UserDefaults(suiteName: Keys.appGroupSuite) {
+            sharedDefaults.set(sharedData, forKey: Keys.widgetTasksKey)
             WidgetCenter.shared.reloadAllTimelines()
         }
+    }
+
+    private func sleep(seconds: Double) async {
+        let ns = UInt64(seconds * 1_000_000_000)
+        try? await Task.sleep(nanoseconds: ns)
     }
 }

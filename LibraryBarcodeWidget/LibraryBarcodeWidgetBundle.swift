@@ -12,7 +12,7 @@ import SwiftUI
 struct LibraryBarcodeWidgetBundle: WidgetBundle {
     var body: some Widget {
         LibraryBarcodeWidget()
-        LibraryBarcodeWidgetControl()
-        LibraryBarcodeWidgetLiveActivity()
+        //LibraryBarcodeWidgetControl()
+        //LibraryBarcodeWidgetLiveActivity()
     }
 }

@@ -75,11 +75,10 @@ struct LectureEditView: View {
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                         } else {
                             Text(room) // 修正済み
-                            Button {
+                            Button("編集") {
                                 showRoomEditConfirm = true
-                            } label: {
-                                Image(systemName: "lock")
                             }
+                            .foregroundColor(.blue)
                         }
                     }
                     

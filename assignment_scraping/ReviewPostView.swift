@@ -34,7 +34,8 @@ struct ReviewPostView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            ZStack {
+                Form {
                 // 評価セクション（星）
                 Section(header: Text("評価(必須)")) {
                     VStack(alignment: .leading, spacing: 8) {
@@ -136,6 +137,10 @@ struct ReviewPostView: View {
                     .disabled(rating == 0 || easyScore == 0)
                     .padding(.horizontal)
                     .listRowBackground(Color.clear)
+                }
+                }
+                .onTapGesture {
+                    UIApplication.shared.endEditing()
                 }
             }
             .navigationTitle("口コミ投稿")

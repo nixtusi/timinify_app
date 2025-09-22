@@ -19,18 +19,25 @@ class MemoStorage: ObservableObject {
     func addMemo(_ text: String) {
         let newMemo = LectureMemo(id: UUID(), text: text, date: Date())
         memos.insert(newMemo, at: 0)
-        save()
+        saveSorted()
     }
     
     func updateMemo(_ memo: LectureMemo) {
         if let index = memos.firstIndex(where: { $0.id == memo.id }) {
-            memos[index] = memo
-            save()
+            // 上書き保存時は更新時刻を新しい作成時刻として扱う（並び替え用）
+            let updated = LectureMemo(id: memo.id, text: memo.text, date: Date())
+            memos[index] = updated
+            saveSorted()
         }
     }
     
     func deleteMemo(at offsets: IndexSet) {
         memos.remove(atOffsets: offsets)
+        saveSorted()
+    }
+    
+    private func saveSorted() {
+        memos.sort { $0.date > $1.date }
         save()
     }
 
