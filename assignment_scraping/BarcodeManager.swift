@@ -98,4 +98,20 @@ class BarcodeManager {
         let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.yuta.beefapp")!
             return container.appendingPathComponent(barcodeImageFileName)
     }
+    
+    // デバイス内から削除
+    func deleteSavedBarcode() {
+        let path = imageFilePath()
+        if FileManager.default.fileExists(atPath: path.path) {
+            do {
+                try FileManager.default.removeItem(at: path)
+                print("🗑️ バーコード画像を削除しました")
+            } catch {
+                print("⚠️ バーコード削除エラー: \(error.localizedDescription)")
+            }
+        } else {
+            print("ℹ️ 削除対象のバーコード画像は存在しません")
+        }
+    }
+
 }

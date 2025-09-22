@@ -55,16 +55,33 @@ struct InitialSetupView: View {
                     .textInputAutocapitalization(.never)
                     .padding(.horizontal)
                 
-                HStack(spacing: 0) {
-                    Button(action: {
-                        showingTerms = true
-                    }) {
-                        Text("利用規約")
-                            .foregroundColor(.blue)
-                            .fontWeight(.bold)
-                            .underline()
+                VStack(spacing: 0) {
+                    HStack(spacing: 4) {
+                        Button(action: {
+                            showingTerms = true
+                        }) {
+                            Text("利用規約")
+                                .foregroundColor(.blue)
+                                .fontWeight(.bold)
+                                .underline()
+                        }
+                        .buttonStyle(PlainButtonStyle())
+
+                        Text("および")
+                            .foregroundColor(.primary)
+
+                        Button(action: {
+                            if let url = URL(string: "https://nixtusi.github.io/unitime-privacy/") {
+                                UIApplication.shared.open(url)
+                            }
+                        }) {
+                            Text("プライバシーポリシー")
+                                .foregroundColor(.blue)
+                                .fontWeight(.bold)
+                                .underline()
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
-                    .buttonStyle(PlainButtonStyle()) //ボタンっぽさを消す
 
                     Text("に同意のうえ、ご利用ください。")
                         .foregroundColor(.primary)

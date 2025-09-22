@@ -7,6 +7,8 @@
 
 import SwiftUI
 import FirebaseAuth
+import FirebaseFirestore
+import WidgetKit
 
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
@@ -19,6 +21,11 @@ struct SettingsView: View {
     
     @State private var barcodeImage: UIImage? = nil
     @State private var isFetchingBarcode = false
+    
+    @State private var showingDeleteAlert = false
+    @State private var deleting = false
+    @State private var deleteError: String?
+    @State private var deleteStep: String?
 
     private var studentNumber: String {
         let email = Auth.auth().currentUser?.email ?? ""
@@ -74,8 +81,16 @@ struct SettingsView: View {
                     }
 
                     NavigationLink(destination: TermsView()) {
-                        Text("利用規約を見る")
+                        Text("利用規約")
                             .foregroundColor(.primary)
+                    }
+                    
+                    Button(action: {
+                        if let url = URL(string: "https://nixtusi.github.io/unitime-privacy/") {
+                            UIApplication.shared.open(url)
+                        }
+                    }) {
+                        Text("プライバシーポリシー (外部リンク)")
                     }
 
                     Button {
@@ -95,11 +110,35 @@ struct SettingsView: View {
 //                    Text("BEEF+ と異なるパスワードで作成してしまった場合のみ使用してください。")
 //                        .font(.caption)
 //                        .foregroundColor(.secondary)
+                    
+                    Button(action: {
+                        if let url = URL(string: "https://forms.gle/1bdUg6UyFgASGwNR6") {
+                            UIApplication.shared.open(url)
+                        }
+                    }) {
+                        Text("お問い合わせ")
+                    }
 
                     Button(role: .destructive) {
                         showingLogoutAlert = true
                     } label: {
                         Text("ログアウト")
+                    }
+                    
+                    Button(role: .destructive) {
+                        showingDeleteAlert = true
+                    } label: {
+                        Text("アカウント削除")
+                    }
+                    .alert("本当に削除しますか？", isPresented: $showingDeleteAlert) {
+                        Button("削除する", role: .destructive) {
+                            Task {
+                                await deleteAccount()
+                            }
+                        }
+                        Button("キャンセル", role: .cancel) { }
+                    } message: {
+                        Text("Uni Timeサービスにおける時間割などのあなたのアカウントは削除されます。口コミは匿名のまま残ります。")
                     }
                 }
             }
@@ -158,4 +197,108 @@ struct SettingsView: View {
             }
         }
     }
+    
+    @MainActor
+    private func deleteAccount() async {
+        deleting = true
+        deleteError = nil
+        deleteStep = "再認証中…"
+
+        guard let user = Auth.auth().currentUser,
+              let email = user.email else {
+            deleting = false
+            deleteError = "ユーザー情報を取得できませんでした。"
+            return
+        }
+
+        // 再認証（直近ログインでないと削除が失敗する）
+        if let password = UserDefaults.standard.string(forKey: "loginPassword"), !password.isEmpty {
+            do {
+                let cred = EmailAuthProvider.credential(withEmail: email, password: password)
+                _ = try await user.reauthenticate(with: cred)
+            } catch {
+                deleting = false
+                deleteError = "再認証に失敗しました。再ログイン後にお試しください。\n\(error.localizedDescription)"
+                return
+            }
+        } else {
+            deleting = false
+            deleteError = "端末にパスワードが見つかりません。再ログイン後、もう一度お試しください。"
+            return
+        }
+
+        let db = Firestore.firestore()
+
+        // 学籍番号・入学年度など
+        let studentNumber = email.replacingOccurrences(of: "@stu.kobe-u.ac.jp", with: "")
+        let entryYear: Int? = {
+            guard let two = Int(studentNumber.prefix(2)) else { return nil }
+            return 2000 + two
+        }()
+
+        // 1) Firestore: users/{uid} を削除
+        do {
+            deleteStep = "ユーザーデータ削除中…"
+            try await db.collection("users").document(user.uid).delete()
+        } catch {
+            // users が無くても続行
+            print("users削除エラー: \(error.localizedDescription)")
+        }
+
+        // 2) Firestore: Timetable ツリーを削除（既知の構造のみ）
+        // /Timetable/{entryYear}/{studentNumber}/{AY}/Q{1..4}/{doc}
+        if let ent = entryYear {
+            let base = db.collection("Timetable").document("\(ent)").collection(studentNumber)
+            // 学年は4年分をざっくりスキャン（必要に応じて調整）
+            let thisYear = Calendar.current.component(.year, from: Date())
+            let years = (thisYear-3)...(thisYear+1)
+            for y in years {
+                deleteStep = "時間割 \(y) 年度の削除中…"
+                let yearDoc = base.document("\(y)")
+                for q in 1...4 {
+                    let qsnap = try? await yearDoc.collection("Q\(q)").getDocuments()
+                    if let docs = qsnap?.documents, !docs.isEmpty {
+                        let batch = db.batch()
+                        docs.forEach { batch.deleteDocument($0.reference) }
+                        do { try await batch.commit() } catch { print("Q\(q) バッチ削除失敗: \(error.localizedDescription)") }
+                    }
+                }
+                // 年度ドキュメント本体はフィールド無しなら何もせず。必要なら yearDoc.delete()
+            }
+        }
+
+        // 3) 端末ローカルのクリア
+        deleteStep = "ローカルデータの消去中…"
+        UserDefaults.standard.removeObject(forKey: "studentNumber")
+        UserDefaults.standard.removeObject(forKey: "loginPassword")
+        UserDefaults.standard.removeObject(forKey: "cachedTimetableItems")
+
+        // ウィジェットのキャッシュ消去（App Group）
+        if let ud = UserDefaults(suiteName: "group.com.yuta.beefapp") {
+            ud.removeObject(forKey: "widgetTimetableToday")
+        }
+        WidgetCenter.shared.reloadAllTimelines()
+
+        // 図書館バーコード画像があれば削除
+        BarcodeManager.shared.deleteSavedBarcode()
+
+        // 4) Firebase Auth のユーザー削除
+        deleteStep = "アカウント削除中…"
+        do {
+            try await user.delete()
+        } catch {
+            deleting = false
+            deleteError = "アカウント削除に失敗しました: \(error.localizedDescription)"
+            return
+        }
+
+        // 5) ログアウト状態へ
+        deleteStep = "サインアウト中…"
+        try? Auth.auth().signOut()
+        appState.isLoggedIn = false
+
+        deleting = false
+        deleteStep = nil
+    }
 }
+
