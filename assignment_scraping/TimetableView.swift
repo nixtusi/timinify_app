@@ -16,6 +16,8 @@ struct TimetableView: View {
     @AppStorage("selectedQuarter") private var selectedQuarter: Int = 2
     @AppStorage("hasInitializedYear") private var hasInitializedYear: Bool = false
     
+    @AppStorage("selectedGrade") private var selectedGrade: Int = 1
+    
     @State private var admissionYear: Int? = nil // 入学年度
     @Environment(\.scenePhase) private var scenePhase
     private var studentNumber: String {
@@ -66,18 +68,58 @@ struct TimetableView: View {
             }
             .navigationTitle("時間割")
             .task {
+//                if admissionYear == nil {
+//                    if let prefix = Int(studentNumber.prefix(2)) {
+//                        let year = 2000 + prefix
+//                        self.admissionYear = year
+//                        
+//                        if !hasInitializedYear {
+//                            self.selectedYear = year
+//                            self.hasInitializedYear = true
+//                        }
+//
+//                    }
+//                }
+                
                 if admissionYear == nil {
                     if let prefix = Int(studentNumber.prefix(2)) {
                         let year = 2000 + prefix
                         self.admissionYear = year
+                        
+                        // 初期化：学年優先で年度を決定
                         if !hasInitializedYear {
-                            self.selectedYear = year
+                            // 今日時点の学年を推定（4/1で学年が上がる想定）
+                            let g = currentGrade(today: Date(), admissionYear: year)
+                            self.selectedGrade = g
+                            self.selectedYear = year + (g - 1)
+                            self.hasInitializedYear = true
+                        } else {
+                            // 既存selectedYearから学年を復元（1〜4にクランプ）
+                            let inferred = (self.selectedYear - year) + 1
+                            self.selectedGrade = min(max(inferred, 1), 4)
+                        }
+                    } else {
+                        // 学籍番号が取れない場合のフォールバック
+                        if !hasInitializedYear {
+                            self.selectedGrade = 1
                             self.hasInitializedYear = true
                         }
                     }
                 }
+                
                 fetcher.loadFromLocal() //起動時にローカルを先に表示
                 await fetcher.loadFromFirestore(year: selectedYear, quarter: selectedQuarter)
+            }
+            // 学年変更 → 年度を入学年度から再計算
+            .onChange(of: selectedGrade) { _ in
+                if let base = admissionYear {
+                    self.selectedYear = base + (selectedGrade - 1)
+                } else {
+                    // 入学年度が不明なときは、現在のselectedYearを基準に保守的に調整
+                    // ＝ 今の年度から逆算して「基準年」を作る
+                    let base = selectedYear - (selectedGrade - 1)
+                    self.selectedYear = base + (selectedGrade - 1) // 実質そのまま
+                }
             }
             .onChange(of: selectedYear) { _ in
                 Task {
@@ -117,20 +159,33 @@ struct TimetableView: View {
     
     private var controlPanel: some View {
         HStack {
-            //年度ピッカー
-            Picker(selection: $selectedYear, label:
-                Text(verbatim: "\(selectedYear)年度")
+//            //年度ピッカー
+//            Picker(selection: $selectedYear, label:
+//                Text(verbatim: "\(selectedYear)年度")
+//                    .font(.body.weight(.bold))
+//                    .foregroundColor(.gray)
+//            ) {
+//                if let baseYear = admissionYear {
+//                    ForEach(baseYear...(baseYear + 3), id: \.self) { year in
+//                        Text(verbatim: "\(year)年度").tag(year)
+//                    }
+//                } else {
+//                    ForEach(2023...2026, id: \.self) { year in
+//                        Text(verbatim: "\(year)年度").tag(year)
+//                    }
+//                }
+//            }
+//            .pickerStyle(MenuPickerStyle())
+//            .tint(.gray)
+            
+            // 学年ピッカー（1〜4年生）
+            Picker(selection: $selectedGrade, label:
+                Text("\(selectedGrade)年")
                     .font(.body.weight(.bold))
                     .foregroundColor(.gray)
             ) {
-                if let baseYear = admissionYear {
-                    ForEach(baseYear...(baseYear + 3), id: \.self) { year in
-                        Text(verbatim: "\(year)年度").tag(year)
-                    }
-                } else {
-                    ForEach(2023...2026, id: \.self) { year in
-                        Text(verbatim: "\(year)年度").tag(year)
-                    }
+                ForEach(1...4, id: \.self) { g in
+                    Text("\(g)年").tag(g)
                 }
             }
             .pickerStyle(MenuPickerStyle())
@@ -153,6 +208,22 @@ struct TimetableView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 4)
+    }
+    
+    // --- 学年推定ヘルパー（4/1で学年繰り上げ） ---
+    private func currentGrade(today: Date, admissionYear: Int) -> Int {
+        let academic = academicYear(for: today)
+        // 学年 = (今年の学年) = (学年開始の年度差) + 1 を 1〜4にクランプ
+        let g = (academic - admissionYear) + 1
+        return min(max(g, 1), 4)
+    }
+    
+    private func academicYear(for date: Date) -> Int {
+        let cal = Calendar(identifier: .gregorian)
+        let comps = cal.dateComponents([.year, .month], from: date)
+        guard let y = comps.year, let m = comps.month else { return selectedYear }
+        // 日本の学年は4月開始：1〜3月は前年度扱い
+        return m >= 4 ? y : (y - 1)
     }
     
     private var contentBody: some View {

@@ -116,47 +116,61 @@ struct SetupFlowView: View {
                             .foregroundColor(.secondary)
                         Button(role: .destructive, action: cancelUpdate) {
                             Text("キャンセル")
-                                .bold()
                                 .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.red)
-                                .foregroundColor(.white)
-                                .cornerRadius(10)
+                                .frame(height: 48)
                         }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.red)
                     } else if updateCompleted {
                         Label("データ更新が完了しました", systemImage: "checkmark.circle.fill")
                             .foregroundColor(.green)
                             .font(.headline)
-                        Button("次へ") { onComplete() }
-                            .bold()
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color(hex: "#4B3F96"))
-                            .foregroundColor(.white)
-                            .cornerRadius(10)
+                        Button {
+                            onComplete()
+                        } label: {
+                            Text("次へ")
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 48)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color(hex: "#4B3F96"))
                     } else if let error = errorMessage {
                         Label("エラー: \(error)", systemImage: "xmark.octagon")
                             .foregroundColor(.red)
                             .font(.headline)
-                        Button("再試行", action: startUpdate)
-                            .bold()
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color(hex: "#4B3F96"))
-                            .foregroundColor(.white)
-                            .cornerRadius(10)
-                        Button("スキップ") { onComplete() }
-                            .foregroundColor(.blue)
+                        Button(action: startUpdate) {
+                            Text("再試行")
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 48)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color(hex: "#4B3F96"))
+                        Button {
+                            onComplete()
+                        } label: {
+                            Text("スキップ")
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 48)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(Color(hex: "#4B3F96"))
                     } else {
-                        Button("データ取得を開始", action: startUpdate)
-                            .bold()
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color(hex: "#4B3F96"))
-                            .foregroundColor(.white)
-                            .cornerRadius(10)
-                        Button("スキップ") { onComplete() }
-                            .foregroundColor(.blue)
+                        Button(action: startUpdate) {
+                            Text("データ取得を開始")
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 48)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color(hex: "#4B3F96"))
+                        Button {
+                            onComplete()
+                        } label: {
+                            Text("スキップ")
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 48)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(Color(hex: "#4B3F96"))
                     }
                 }
                 .padding()

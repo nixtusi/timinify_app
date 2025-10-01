@@ -150,15 +150,26 @@ struct DataUpdateView: View {
                             .foregroundColor(.red)
                             .font(.headline)
                     } else {
-                        Button(action: startUpdate) {
+//                        Button(action: startUpdate) {
+//                            Text("更新を開始する")
+//                                .bold()
+//                                .frame(maxWidth: .infinity)
+//                                .padding()
+//                                .background(Color(hex: "#4B3F96"))
+//                                .foregroundColor(.white)
+//                                .cornerRadius(10)
+//                        }
+                        
+                        Button {
+                            startUpdate()
+                        } label: {
                             Text("更新を開始する")
-                                .bold()
                                 .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color(hex: "#4B3F96"))
-                                .foregroundColor(.white)
-                                .cornerRadius(10)
+                                .frame(height: 48)
                         }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color(hex: "#4B3F96"))
+                        .listRowInsets(.init()) // 端まで広げて押しやすく
                     }
                 }
                 .padding()
