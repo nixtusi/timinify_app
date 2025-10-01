@@ -378,7 +378,7 @@ struct TimetableView: View {
                             .frame(maxWidth: .infinity, minHeight: 14, maxHeight: 14)
                             .background(
                                 RoundedRectangle(cornerRadius: 3)
-                                    .fill(Color(hex: c.color ?? "#FF3B30").opacity(0.85))
+                                    .fill(Color(hex: c.color ?? "#FF3B30").opacity(0.64))
                             )
                             .padding(.horizontal, 1.7)
                             .padding(.bottom, 2.1)
