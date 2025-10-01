@@ -362,9 +362,9 @@ struct LectureDetailView: View {
         .onDisappear {
             NotificationCenter.default.post(name: .timetableDidChange, object: nil)
         }
+        .notifyOnDisappear(.timetableDidChange)
     }
 }
-
 
 // 統計カード（LectureDetailViewでもReviewsViewでも使い回し）
 struct ReviewStatsCard: View {
@@ -473,5 +473,20 @@ struct AddReviewCard: View {
             .cornerRadius(10)
         }
         .buttonStyle(.plain)
+    }
+}
+
+// 共通: 消えるタイミングで通知を飛ばすモディファイア
+struct NotifyOnDisappear: ViewModifier {
+    let name: Notification.Name
+    func body(content: Content) -> some View {
+        content.onDisappear {
+            NotificationCenter.default.post(name: name, object: nil)
+        }
+    }
+}
+extension View {
+    func notifyOnDisappear(_ name: Notification.Name) -> some View {
+        modifier(NotifyOnDisappear(name: name))
     }
 }

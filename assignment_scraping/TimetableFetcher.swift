@@ -20,7 +20,7 @@ struct TimetableItem: Codable, Identifiable, Hashable, Equatable {
     let teacher: String
     let title: String
     let room: String?
-    var quarter: Int = 1
+    var quarter: Int? = nil
     var color: String?
     
     private enum CodingKeys: String, CodingKey {
@@ -33,15 +33,15 @@ struct TimetableItem: Codable, Identifiable, Hashable, Equatable {
 }
 
 struct QuarterTimetable: Codable {
-    let timetable: [TimetableItem]
-    let year: String
-    let year_semester: String
+    let timetable: [TimetableItem]?
+    let year: String?
+    let year_semester: String?
 }
 
 struct ScheduleDetail: Codable {
     let period: Int?
     let room: String?
-    let subject: String
+    let subject: String?
 }
 
 struct DailySchedule: Codable {
@@ -101,7 +101,8 @@ class TimetableFetcher: ObservableObject {
 
             timetableItems = response.timetables.flatMap { (key, quarterData) in
                 let q = Int(key) ?? 1
-                return quarterData.timetable.map { item in
+                let list = quarterData.timetable ?? []
+                return list.map { item in
                     var modified = item
                     modified.quarter = q
                     return modified
@@ -156,7 +157,39 @@ class TimetableFetcher: ObservableObject {
                 throw NSError(domain: "APIError", code: -1, userInfo: [NSLocalizedDescriptionKey: "APIエラー"])
             }
 
-            return try JSONDecoder().decode(UribonetResponse.self, from: data)
+            let decoder = JSONDecoder()
+            // Keep explicit keys (no convertFromSnakeCase) because the payload keys already match.
+            do {
+                return try decoder.decode(UribonetResponse.self, from: data)
+            } catch let DecodingError.keyNotFound(key, context) {
+                let raw = String(data: data, encoding: .utf8) ?? "<non‑utf8>"
+                throw NSError(
+                    domain: "JSONDecoding",
+                    code: -2,
+                    userInfo: [NSLocalizedDescriptionKey: "Missing key: \(key.stringValue) at \(context.codingPath.map{ $0.stringValue }.joined(separator: "."))\nRAW: \(raw.prefix(1000))..."]
+                )
+            } catch let DecodingError.typeMismatch(type, context) {
+                let raw = String(data: data, encoding: .utf8) ?? "<non‑utf8>"
+                throw NSError(
+                    domain: "JSONDecoding",
+                    code: -3,
+                    userInfo: [NSLocalizedDescriptionKey: "Type mismatch for \(type) at \(context.codingPath.map{ $0.stringValue }.joined(separator: "."))\nRAW: \(raw.prefix(1000))..."]
+                )
+            } catch let DecodingError.valueNotFound(type, context) {
+                let raw = String(data: data, encoding: .utf8) ?? "<non‑utf8>"
+                throw NSError(
+                    domain: "JSONDecoding",
+                    code: -4,
+                    userInfo: [NSLocalizedDescriptionKey: "Value not found for \(type) at \(context.codingPath.map{ $0.stringValue }.joined(separator: "."))\nRAW: \(raw.prefix(1000))..."]
+                )
+            } catch {
+                let raw = String(data: data, encoding: .utf8) ?? "<non‑utf8>"
+                throw NSError(
+                    domain: "JSONDecoding",
+                    code: -5,
+                    userInfo: [NSLocalizedDescriptionKey: "Unknown decode error: \(error.localizedDescription)\nRAW: \(raw.prefix(1000))..."]
+                )
+            }
 
         } catch {
             if retries > 0 {
@@ -188,10 +221,10 @@ class TimetableFetcher: ObservableObject {
         
             let rawRoom = schedules.first(where: { daySched in
                 daySched.schedule.contains(where: {
-                    $0.period == item.period && $0.subject == item.title && $0.room != nil
+                    ($0.period == item.period) && (($0.subject ?? "") == item.title) && ($0.room != nil)
                 })
             })?
-            .schedule.first(where: { $0.period == item.period && $0.subject == item.title })?
+            .schedule.first(where: { ($0.period == item.period) && (($0.subject ?? "") == item.title) })?
             .room ?? ""
 
             let room = rawRoom.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? rawRoom
@@ -203,7 +236,7 @@ class TimetableFetcher: ObservableObject {
                 "teacher": item.teacher,
                 "title": item.title,
                 "room": room,
-                "quarter": item.quarter
+                "quarter": item.quarter ?? 1
             ]
 
             let path = firestore
@@ -211,7 +244,7 @@ class TimetableFetcher: ObservableObject {
                 .document(entryYear)
                 .collection(studentNumber)
                 .document(academicYear)
-                .collection("Q\(item.quarter)")
+                .collection("Q\(item.quarter ?? 1)")
 
             do {
                 try await path.document(item.id).setData(docData)
@@ -243,7 +276,8 @@ class TimetableFetcher: ObservableObject {
         errorMessage = nil
 
         do {
-            let snapshot = try await path.getDocuments()
+            //let snapshot = try await path.getDocuments()
+            let snapshot = try await path.getDocuments(source: .server)
             var items: [TimetableItem] = []
             
             
@@ -262,7 +296,8 @@ class TimetableFetcher: ObservableObject {
                         .document(String(year))
                         .collection("Q\(quarter)")
                         .document(item.code)
-                    let classDoc = try await classRef.getDocument()
+                    //let classDoc = try await classRef.getDocument()
+                    let classDoc = try await classRef.getDocument(source: .server)
 
                     let sharedRoom = classDoc.data()?["room"] as? String ?? ""
                     let personalRoom = item.room ?? ""

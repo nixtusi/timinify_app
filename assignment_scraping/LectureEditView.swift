@@ -18,6 +18,7 @@ struct LectureEditView: View {
     var room: String
     var day: String
     var period: Int
+    //var onSaved: (() -> Void)? = nil
 
     @StateObject private var viewModel = LectureDetailViewModel()
     @State private var isEditingRoom = false
@@ -27,6 +28,7 @@ struct LectureEditView: View {
     @State private var showRoomEditConfirm = false
     
     @State private var showSaveAlert = false
+    @State private var didSave = false
     @Environment(\.dismiss) private var dismiss
     
     private var studentNumber: String {
@@ -155,7 +157,15 @@ struct LectureEditView: View {
             Button("OK") {
                 // 色更新を他画面へ通知しておく（TimetableViewが受け取り次第リロード）
                 NotificationCenter.default.post(name: .timetableDidChange, object: nil)
+                didSave = true
                 dismiss() //OKボタンで画面を閉じる
+            }
+        }
+        
+        // 画面を閉じた“後”に通知（didSaveのときだけ）
+        .onDisappear {
+            if didSave {
+                NotificationCenter.default.post(name: .timetableDidChange, object: nil)
             }
         }
     }

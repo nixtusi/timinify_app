@@ -72,7 +72,7 @@ struct TimetableView: View {
 //                    if let prefix = Int(studentNumber.prefix(2)) {
 //                        let year = 2000 + prefix
 //                        self.admissionYear = year
-//                        
+//
 //                        if !hasInitializedYear {
 //                            self.selectedYear = year
 //                            self.hasInitializedYear = true
@@ -110,50 +110,42 @@ struct TimetableView: View {
                 fetcher.loadFromLocal() //起動時にローカルを先に表示
                 await fetcher.loadFromFirestore(year: selectedYear, quarter: selectedQuarter)
             }
-            // 学年変更 → 年度を入学年度から再計算
+            .onReceive(NotificationCenter.default.publisher(for: .timetableDidChange)) { _ in
+                reloadFromRemote()
+            }
+            .onAppear {
+                reloadFromRemote()
+            }
             .onChange(of: selectedGrade) { _ in
                 if let base = admissionYear {
                     self.selectedYear = base + (selectedGrade - 1)
                 } else {
-                    // 入学年度が不明なときは、現在のselectedYearを基準に保守的に調整
-                    // ＝ 今の年度から逆算して「基準年」を作る
                     let base = selectedYear - (selectedGrade - 1)
-                    self.selectedYear = base + (selectedGrade - 1) // 実質そのまま
+                    self.selectedYear = base + (selectedGrade - 1)
                 }
+                // 年度を変えた直後は即リロード
+                reloadFromRemote()
             }
             .onChange(of: selectedYear) { _ in
-                Task {
-                    await fetcher.loadFromFirestore(year: selectedYear, quarter: selectedQuarter)
-                }
+                reloadFromRemote()
             }
             .onChange(of: selectedQuarter) { _ in
-                Task {
-                    await fetcher.loadFromFirestore(year: selectedYear, quarter: selectedQuarter)
-                }
-            }
-            .onAppear {
-                // 画面に戻ってきたら強制リロード（サーバー最新を反映）
-                bumpReload()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .timetableDidChange)) { _ in
-                bumpReload()
+                reloadFromRemote()
             }
             .onChange(of: selectedCourse) { newValue in
-                // 詳細画面などから戻ってきたタイミング（選択が解除）で再読込
-                if newValue == nil { bumpReload() }
+                if newValue == nil { reloadFromRemote() }
             }
+            // フォアグラウンド復帰の2つも bumpReload ではなく直で
             .onChange(of: scenePhase) { phase in
-                if phase == .active { bumpReload() }
+                if phase == .active { reloadFromRemote() }
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-                bumpReload()
+                reloadFromRemote()
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
-                bumpReload()
+                reloadFromRemote()
             }
-            .task(id: reloadTick) {
-                reloadTimetable()
-            }
+            // reloadTick タスクは不要（bumpReload を使わないなら）
         }
     }
     
@@ -181,7 +173,8 @@ struct TimetableView: View {
             // 学年ピッカー（1〜4年生）
             Picker(selection: $selectedGrade, label:
                 Text("\(selectedGrade)年")
-                    .font(.body.weight(.bold))
+                    .font(.body)
+                    .fontWeight(.bold)
                     .foregroundColor(.gray)
             ) {
                 ForEach(1...4, id: \.self) { g in
@@ -189,12 +182,14 @@ struct TimetableView: View {
                 }
             }
             .pickerStyle(MenuPickerStyle())
+            //.pickerStyle(.segmented)
             .tint(.gray)
 
             // クォーターピッカー
             Picker(selection: $selectedQuarter, label:
                 Text("\(selectedQuarter)Q")
-                    .font(.body.weight(.bold))
+                    .font(.body)
+                    .fontWeight(.bold)
                     .foregroundColor(.gray)
             ) {
                 ForEach(1...4, id: \.self) { q in
@@ -205,6 +200,15 @@ struct TimetableView: View {
             .tint(.gray)
 
             Spacer()
+//            Button(action: {
+//                reloadFromRemote()
+//            }) {
+//                Label("更新", systemImage: "arrow.clockwise")
+//            }
+//            .buttonStyle(.bordered)
+//            .controlSize(.regular)
+//            .keyboardShortcut("r", modifiers: .command)
+//            .accessibilityLabel("時間割を更新")
         }
         .padding(.horizontal)
         .padding(.vertical, 4)
@@ -297,6 +301,7 @@ struct TimetableView: View {
                             }
 
                             TimetableCell(course: course)
+                                .id("\(course?.id ?? "nil")-\(course?.color ?? "no-color")")
                                 .frame(width: colW, height: rowH)
                                 .padding(.vertical, spacingPerSide)
                                 .padding(.leading, spacingPerSide)
@@ -365,14 +370,15 @@ struct TimetableView: View {
                             .font(.caption2)
                         
                         Text(c.room ?? "")
-                            .font(.caption2)
-                            //.foregroundColor(.white)
+                            .font(.system(size: 12))              // 基本フォントサイズ
+                            .lineLimit(1)                         // 1行に収める
+                            .minimumScaleFactor(0.5)              // 入り切らないときは 50% まで縮小
+                            .allowsTightening(true)               // 文字間を少し詰める
                             .foregroundColor(.primary)
                             .frame(maxWidth: .infinity, minHeight: 14, maxHeight: 14)
                             .background(
                                 RoundedRectangle(cornerRadius: 3)
-                                    //.fill(Color(UIColor.systemBackground))
-                                    .fill(Color(hex: c.color ?? "#FF3B30").opacity(0.64))
+                                    .fill(Color(hex: c.color ?? "#FF3B30").opacity(0.85))
                             )
                             .padding(.horizontal, 1.7)
                             .padding(.bottom, 2.1)
@@ -410,13 +416,24 @@ struct TimetableView: View {
 
     // --- Timetable reload helper ---
     private func reloadTimetable() {
-        fetcher.loadFromLocal()
+        //fetcher.loadFromLocal()
         Task {
             await fetcher.loadFromFirestore(year: selectedYear, quarter: selectedQuarter)
         }
     }
 
     private func bumpReload() { reloadTick &+= 1 }
+    
+    private func reloadFromRemote(file: String = #fileID, line: Int = #line) {
+        let ts = ISO8601DateFormatter().string(from: Date())
+        print("🔁[\(ts)] reloadFromRemote() START  year=\(selectedYear) Q=\(selectedQuarter) @\(file):\(line)")
+        Task { @MainActor in
+            await fetcher.loadFromFirestore(year: selectedYear, quarter: selectedQuarter)
+            let count = fetcher.timetableItems.count
+            let sample = fetcher.timetableItems.first
+            print("✅[\(ISO8601DateFormatter().string(from: Date()))] reloadFromRemote() DONE  items=\(count)  sample=\(sample?.code ?? "nil") color=\(sample?.color ?? "nil")")
+        }
+    }
 }
 
 extension Notification.Name {
