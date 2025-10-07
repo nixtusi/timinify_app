@@ -69,7 +69,7 @@ struct LectureEditView: View {
 
                     Divider()
 
-                    HStack {
+                    HStack(alignment: .firstTextBaseline) {
                         Text("教室")
                             .fontWeight(.semibold)
                         if isEditingRoom {
@@ -77,19 +77,27 @@ struct LectureEditView: View {
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                         } else {
                             Text(room) // 修正済み
-                            Button("編集") {
-                                showRoomEditConfirm = true
-                            }
-                            .foregroundColor(.blue)
                         }
                     }
-                    
                 }
                 .onTapGesture {
                     UIApplication.shared.endEditing() //キーボード外をタップでキーボードを閉じる
                 }
             }
-
+            
+            if !isEditingRoom {
+                Button {
+                    showRoomEditConfirm = true
+                } label: {
+                    Text("教室を変更する")
+                        .font(.callout)
+                        .bold()
+                        .frame(maxWidth: .infinity, alignment: .center) // 中央揃え
+                        .foregroundColor(.blue)
+                        .padding(.top, 4)
+                }
+            }
+            
             Section(header: Text("背景色")) {
                 ForEach(colorOptions, id: \.hex) { option in
                     Button {

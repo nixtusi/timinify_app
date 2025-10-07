@@ -17,51 +17,40 @@ class LectureDetailViewModel: ObservableObject {
     @Published var evaluation: String?
     @Published var references: String?
     @Published var syllabus: Syllabus? = nil
-    @Published var colorHex: String = "#FF3B30" // ← デフォルト赤
+    @Published var colorHex: String = "#FF3B30"
     
     @Published var reviews: [Review] = []
     
-    private var db = Firestore.firestore()
+    private let db = Firestore.firestore()
     
-    /// Firestoreからデータを取得し、必要なら/classに授業を登録
+    // MARK: - ① Timetable & class情報を取得
     func fetchLectureDetails(studentId: String, admissionYear: String, year: String, quarter: String, day: String, period: Int, lectureCode: String) async {
         do {
-            // Timetableの情報取得
+            // Timetable参照
             let timetablePath = "Timetable/\(admissionYear)/\(studentId)/\(year)/Q\(quarter)/\(lectureCode)\(day)\(period)"
             let timetableRef = db.document(timetablePath)
-            let timetableSnapshot = try await timetableRef.getDocument()
-            let timetableData = timetableSnapshot.data()
-
-            // class情報を取得し、room補完または新規登録
+            let timetableSnap = try await timetableRef.getDocument()
+            let timetableData = timetableSnap.data()
+            
+            // class参照
             let classPath = "class/\(year)/Q\(quarter)/\(lectureCode)"
             let classRef = db.document(classPath)
-            let classDoc = try await classRef.getDocument()
-            let classData = classDoc.data()
-
-            // シラバス情報の取得
-            let syllabusRef = db.document("NewSyllabus/\(year)/第\(quarter)クォーター/\(day)/lectures/\(lectureCode)")
-            let syllabusDoc = try await syllabusRef.getDocument()
-            let sData = syllabusDoc.data()
-
-            // 🔽 UI更新はメインスレッドでまとめて行う
+            let classSnap = try await classRef.getDocument()
+            let classData = classSnap.data()
+            
+            // UI更新
             await MainActor.run {
                 self.title = timetableData?["title"] as? String ?? ""
                 self.teacher = timetableData?["teacher"] as? String ?? ""
                 self.room = timetableData?["room"] as? String ?? ""
                 self.colorHex = timetableData?["color"] as? String ?? "#FF3B30"
-
-                if let classData = classData, self.room.isEmpty {
-                    self.room = classData["room"] as? String ?? ""
-                }
-
-                if let sData = sData {
-                    self.credits = sData["単位数"] as? String ?? ""
-                    self.evaluation = sData["成績評価基準"] as? String ?? ""
-                    self.references = sData["参考書・参考資料等"] as? String ?? ""
+                
+                if let cData = classData, self.room.isEmpty {
+                    self.room = cData["room"] as? String ?? ""
                 }
             }
-
-            // classが未登録なら登録
+            
+            // class未登録なら作成
             if classData == nil {
                 try await classRef.setData([
                     "room": self.room,
@@ -70,225 +59,180 @@ class LectureDetailViewModel: ObservableObject {
                     "createdAt": FieldValue.serverTimestamp()
                 ])
             }
-
+            
         } catch {
-            print("❌ データ取得エラー: \(error.localizedDescription)")
+            print("❌ fetchLectureDetails エラー: \(error.localizedDescription)")
         }
     }
     
-    // 教室情報を更新してFirestoreに保存
-    func updateRoomInfo(year: String, quarter: String, code: String, newRoom: String) async {
-        let docRef = db.collection("class").document(year)
-            .collection("Q\(quarter)").document(code)
-        
-        do {
-            try await docRef.setData(["room": newRoom], merge: true)
-            print("✅ 教室情報を更新: \(newRoom)")
-        } catch {
-            print("❌ 教室情報の更新エラー: \(error.localizedDescription)")
-        }
-    }
-    
+    // MARK: - ② シラバス情報を取得（完全一致→前方一致）
     @MainActor
     func fetchSyllabus(year: String, quarter: String, day: String, code: String) async {
-        // クォーターごとの探索順を定義
         let quarterSearchOrder: [String: [String]] = [
             "第1クォーター": ["第1クォーター"],
             "第2クォーター": ["第2クォーター", "第1クォーター"],
             "第3クォーター": ["第3クォーター"],
             "第4クォーター": ["第4クォーター", "第3クォーター"]
         ]
-        
         guard let quartersToTry = quarterSearchOrder[quarter] else {
             print("❌ 無効なクォーター: \(quarter)")
             return
         }
         
+        let codePrefix = String(code.prefix(5))
+        
         for q in quartersToTry {
-            let path = "NewSyllabus/\(year)/\(q)/\(day)/lectures/\(code)"
-            print("📘 Firestoreアクセスパス: \(path)")
-            
-            let docRef = db.collection("NewSyllabus")
+            let collectionRef = db.collection("NewSyllabus")
                 .document(year)
                 .collection(q)
                 .document(day)
                 .collection("lectures")
-                .document(code)
             
+            // --- 完全一致 ---
             do {
-                let snapshot = try await docRef.getDocument()
-                
-                if snapshot.exists {
-                    guard let data = snapshot.data() else {
-                        print("⚠️ ドキュメントはあるがデータが空（\(q)）")
-                        return
-                    }
-                    
-                    // 🔽 textbooks フィールドのデコード補完
-                    // ✅ 非throwsなので try/catch は不要。値もログ出し
-                    var decodedTextbooks: [TextbookContent]? = nil
-                    if let rawTextbooks = data["教科書"] {
-                    decodedTextbooks = decodeTextbookContent(from: rawTextbooks)  // ✅
-                        print("📚 decodedTextbooks:", decodedTextbooks ?? [])
-                     } else {
-                         print("📚 教科書フィールドなし")
-                    }
-                    
-                    // 🔽 syllabus オブジェクトを生成
-                    let syllabus = Syllabus(
-                        title: data["開講科目名"] as? String ?? "",
-                        teacher: data["担当"] as? String ?? "",
-                        credits: data["単位数"] as? String,
-                        evaluation: data["成績評価基準"] as? String,
-                        textbooks: decodedTextbooks,
-                        summary: data["授業の概要と計画"] as? String,
-                        goals: data["授業の到達目標"] as? String,
-                        language: data["授業における使用言語"] as? String,
-                        method: data["授業形態"] as? String,
-                        schedule: data["開講期間"] as? String,
-                        remarks: data["履修上の注意"] as? String,
-                        contact: data["オフィスアワー・連絡先"] as? String,
-                        message: data["学生へのメッセージ"] as? String,
-                        keywords: data["キーワード"] as? String,
-                        preparationReview: data["事前・事後学修"] as? String,
-                        improvements: data["今年度の工夫"] as? String,
-                        referenceURL: data["参考URL"] as? String,
-                        evaluationTeacher: data["成績入力担当"] as? String,
-                        evaluationMethod: data["成績評価方法"] as? String,
-                        theme: data["授業のテーマ"] as? String,
-                        references: data["参考書・参考資料等"] as? String,
-                        code: data["時間割コード"] as? String ?? ""
-                    )
-                    
-                    self.syllabus = syllabus
-                    self.credits = syllabus.credits
-                    self.evaluation = syllabus.evaluation
-                    self.references = syllabus.references
-                    
-                    print("✅ シラバス情報を取得しました（\(q)）")
+                let exactDoc = try await collectionRef.document(code).getDocument()
+                if exactDoc.exists, let data = exactDoc.data() {
+                    applySyllabusData(data)
+                    print("✅ シラバス取得（完全一致）: \(q) / \(day) / \(code)")
                     return
                 }
             } catch {
-                print("❌ Firestore取得エラー（\(q)）: \(error.localizedDescription)")
+                print("⚠️ 完全一致取得エラー（\(q)）: \(error.localizedDescription)")
+            }
+            
+            // --- 前5文字一致 ---
+            do {
+                let snapshot = try await collectionRef.getDocuments()
+                if let matched = snapshot.documents.first(where: { $0.documentID.hasPrefix(codePrefix) }) {
+                    applySyllabusData(matched.data())
+                    print("✅ シラバス取得（前方一致: \(matched.documentID)）")
+                    return
+                }
+            } catch {
+                print("❌ 前方一致探索エラー（\(q)）: \(error.localizedDescription)")
             }
         }
         
-        print("❌ いずれのクォーターにもシラバスが存在しません")
+        print("❌ シラバスが見つかりませんでした (\(code))")
     }
     
-//    private func decodeTextbookContent(from raw: Any?) throws -> [TextbookContent] {
-//        guard let array = raw as? [Any] else { return [] }
-//        
-//        return array.compactMap { item in
-//            if let str = item as? String {
-//                return .string(str)
-//            } else if let dict = item as? [String: Any],
-//                      let text = dict["text"] as? String,
-//                      let link = dict["link"] as? String {
-//                return .object(text: text, link: link)
-//            } else {
-//                return nil
-//            }
-//        }
-//    }
+    // MARK: - シラバスデータをViewModelに反映
+    @MainActor
+    private func applySyllabusData(_ data: [String: Any]) {
+        let decodedTextbooks = decodeTextbookContent(from: data["教科書"])
+        
+        let s = Syllabus(
+            title: data["開講科目名"] as? String ?? "",
+            teacher: data["担当"] as? String ?? "",
+            credits: data["単位数"] as? String,
+            evaluation: data["成績評価基準"] as? String,
+            textbooks: decodedTextbooks,
+            summary: data["授業の概要と計画"] as? String,
+            goals: data["授業の到達目標"] as? String,
+            language: data["授業における使用言語"] as? String,
+            method: data["授業形態"] as? String,
+            schedule: data["開講期間"] as? String,
+            remarks: data["履修上の注意"] as? String,
+            contact: data["オフィスアワー・連絡先"] as? String,
+            message: data["学生へのメッセージ"] as? String,
+            keywords: data["キーワード"] as? String,
+            preparationReview: data["事前・事後学修"] as? String,
+            improvements: data["今年度の工夫"] as? String,
+            referenceURL: data["参考URL"] as? String,
+            evaluationTeacher: data["成績入力担当"] as? String,
+            evaluationMethod: data["成績評価方法"] as? String,
+            theme: data["授業のテーマ"] as? String,
+            references: data["参考書・参考資料等"] as? String,
+            code: data["時間割コード"] as? String ?? ""
+        )
+        
+        self.syllabus   = s
+        self.credits    = s.credits
+        self.evaluation = s.evaluation
+        self.references = s.references
+    }
     
-    /// 文字列単体・辞書単体・配列すべてに対応し、空文字/重複を除去する
-    /// 文字列単体・辞書単体・配列すべてに対応し、空文字/重複もケア
+    // MARK: - 教科書データの柔軟デコード
     private func decodeTextbookContent(from raw: Any?) -> [TextbookContent] {
-        // 補助: 文字列トリムして空なら nil
         func cleaned(_ s: String?) -> String? {
             let t = s?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             return t.isEmpty ? nil : t
         }
-
-        // ✅ 辞書→TextbookContent（link が無ければ .string にフォールバック）
         func makeFromDict(_ dict: [String: Any]) -> TextbookContent? {
-            // text 候補（text/title/name のいずれか）
             guard let text = cleaned(dict["text"] as? String
                                      ?? dict["title"] as? String
-                                     ?? dict["name"] as? String) else {
-                return nil
-            }
-
-            // link 候補（link/url/URL、URL型も許容）
+                                     ?? dict["name"] as? String) else { return nil }
             let linkAny = dict["link"] ?? dict["url"] ?? dict["URL"]
-            let linkStr: String? = {
+            let link: String? = {
                 if let s = linkAny as? String { return cleaned(s) }
                 if let u = linkAny as? URL    { return cleaned(u.absoluteString) }
                 return nil
             }()
-
-            if let link = linkStr {
-                return .object(text: text, link: link)  // ✅ link は非Optionalで渡す
+            if let l = link {
+                return .object(text: text, link: l)
             } else {
-                return .string(text)                     // ✅ link 無しなら .string に
+                return .string(text)
             }
         }
-
-        // ① 文字列単体
-        if let s = cleaned(raw as? String) {
-            return [.string(s)]
-        }
-        // ② 辞書単体
-        if let dict = raw as? [String: Any], let item = makeFromDict(dict) {
-            return [item]
-        }
-        // ③ 配列（混在OK）
+        
+        if let s = cleaned(raw as? String) { return [.string(s)] }
+        if let dict = raw as? [String: Any], let item = makeFromDict(dict) { return [item] }
         if let array = raw as? [Any] {
-            // フラットに展開しつつ、空要素は除去
             var out: [TextbookContent] = []
-            var seen = Set<String>() // 重複排除
+            var seen = Set<String>()
             for el in array {
                 let items = decodeTextbookContent(from: el)
                 for it in items {
-                    let key: String = {
-                        switch it {
-                        case .string(let t): return "S|\(t)"
-                        case .object(let t, let l): return "O|\(t)|\(l)"
-                        }
-                    }()
-                    if seen.insert(key).inserted {
-                        out.append(it)
+                    let key: String = switch it {
+                    case .string(let t): "S|\(t)"
+                    case .object(let t, let l): "O|\(t)|\(l)"
                     }
+                    if seen.insert(key).inserted { out.append(it) }
                 }
             }
             return out
         }
-
         return []
     }
     
-    //口コミを取得
-    @MainActor // ← SwiftUIの@Published更新に必須
+    // MARK: - 教室情報更新
+    func updateRoomInfo(year: String, quarter: String, code: String, newRoom: String) async {
+        let docRef = db.collection("class").document(year)
+            .collection("Q\(quarter)").document(code)
+        do {
+            try await docRef.setData(["room": newRoom], merge: true)
+            print("✅ 教室情報を更新: \(newRoom)")
+        } catch {
+            print("❌ 教室情報更新エラー: \(error.localizedDescription)")
+        }
+    }
+    
+    // MARK: - 口コミ取得
+    @MainActor
     func fetchReviews(year: String, quarter: String, lectureCode: String) async {
         let path = "class/\(year)/Q\(quarter)/\(lectureCode)/reviews"
         print("📘 Firestore口コミアクセスパス: \(path)")
         do {
-            let snapshot = try await Firestore.firestore().collection(path).getDocuments()
+            let snapshot = try await db.collection(path).getDocuments()
             self.reviews = snapshot.documents.compactMap { Review(document: $0) }
             print("✅ 口コミ件数: \(self.reviews.count)")
         } catch {
-            print("❌ 口コミの取得に失敗: \(error.localizedDescription)")
+            print("❌ 口コミ取得失敗: \(error.localizedDescription)")
         }
     }
     
-    //平均値プロパティ
+    // MARK: - 統計系プロパティ
     var averageRating: Double {
         guard !reviews.isEmpty else { return 0 }
         return reviews.map { Double($0.rating) }.reduce(0, +) / Double(reviews.count)
     }
-
     var averageEasyScore: Double {
         guard !reviews.isEmpty else { return 0 }
         return reviews.map { Double($0.easyScore) }.reduce(0, +) / Double(reviews.count)
     }
-
     var attendanceFrequencyCounts: [String: Int] {
         var counts: [String: Int] = [:]
-        for review in reviews {
-            counts[review.attendanceFrequency, default: 0] += 1
-        }
+        for r in reviews { counts[r.attendanceFrequency, default: 0] += 1 }
         return counts
     }
 }
-

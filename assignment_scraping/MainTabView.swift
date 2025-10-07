@@ -44,13 +44,13 @@ struct MainTabView: View {
             checkServerTime()
             print("🧾 学籍番号（Firebase Auth）: \(appState.studentNumber)")
         }
-        .alert(isPresented: $showServerOffAlert) {
-            Alert(
-                title: Text("サーバー停止中"),
-                message: Text("現在（0:10〜6:00）はサーバーを停止しているため、新たな情報取得はできません。"),
-                dismissButton: .default(Text("OK"))
-            )
-        }
+//        .alert(isPresented: $showServerOffAlert) {
+//            Alert(
+//                title: Text("サーバー停止中"),
+//                message: Text("現在（0:10〜6:00）はサーバーを停止しているため、新たな情報取得はできません。"),
+//                dismissButton: .default(Text("OK"))
+//            )
+//        }
     }
 
     private func checkServerTime() {
