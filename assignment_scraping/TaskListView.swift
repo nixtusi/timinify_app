@@ -104,7 +104,7 @@ struct TaskListView: View {
         .onAppear {
             fetcher.fetchTasksFromAPI()
         }
-        .onChange(of: scenePhase) { newPhase in
+        .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 fetcher.fetchTasksFromAPI()
                 WidgetCenter.shared.reloadAllTimelines()
@@ -125,6 +125,7 @@ struct TaskListView: View {
         }
     }
 }
+
 
 private func formattedDate(_ date: Date) -> String {
     let formatter = DateFormatter()

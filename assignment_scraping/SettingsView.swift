@@ -27,10 +27,22 @@ struct SettingsView: View {
     @State private var deleteError: String?
     @State private var deleteStep: String?
 
+    // 変更: 確認メール/リセットメールのクールダウン管理
+    @State private var verifyResendRemaining = 0            // 変更: 確認メールクールダウン（秒）
+    @State private var verifyResendTimer: Timer?            // 変更: タイマー
+    @State private var resetResendRemaining = 0             // 変更: パスワードリセットクールダウン（秒）
+    @State private var resetResendTimer: Timer?             // 変更: タイマー
+
     private var studentNumber: String {
         let email = Auth.auth().currentUser?.email ?? ""
         return email.replacingOccurrences(of: "@stu.kobe-u.ac.jp", with: "")
     }
+    private var email: String {
+        Auth.auth().currentUser?.email ?? ""
+    }
+
+    // 変更: メール確認済みを都度反映
+    @State private var isVerified: Bool = false             // 変更: 確認状態キャッシュ
 
     var body: some View {
         ZStack {
@@ -39,14 +51,42 @@ struct SettingsView: View {
 
             Form {
                 Section(header: Text("アカウント")) {
-                    Text(studentNumber)
-                        .font(.body)
-                        .foregroundColor(.primary)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(studentNumber)
+                            .font(.body)
+                            .foregroundColor(.primary)
+
+                        // 変更: 確認状態の表示
+                        HStack {
+                            Label(isVerified ? "メール確認済み" : "メール未確認", systemImage: isVerified ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                                .foregroundColor(isVerified ? .green : .orange)
+                                .font(.subheadline)
+
+                            Spacer()
+
+                            // 変更: 未確認の場合のみ「確認メール再送」
+                            if !isVerified {
+                                Button {
+                                    resendVerificationEmail()
+                                } label: {
+                                    Text(verifyResendRemaining > 0 ? "再送 (\(verifyResendRemaining)s)" : "確認メールを再送")
+                                        .font(.footnote.weight(.semibold))
+                                }
+                                .disabled(verifyResendRemaining > 0)
+                            }
+                        }
+
+                        if !isVerified {
+                            Text("※ 受信トレイ／迷惑メールをご確認ください。リンクは一定時間で失効します。")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
 
                 Section(header: Text("図書館入館証")) {
                     ZStack {
-                        Color.white //ダークモード時でも白背景に固定
+                        Color.white // ダークモード時でも白背景に固定
                             .cornerRadius(12)
                             .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
                         
@@ -71,13 +111,13 @@ struct SettingsView: View {
                             }
                         }
                     }
-                    .listRowInsets(EdgeInsets()) //セクション外の余白を詰める
+                    .listRowInsets(EdgeInsets()) // セクション外の余白を詰める
                 }
 
                 Section(header: Text("その他")) {
                     NavigationLink(destination: DataUpdateView()) {
                         Text("データを更新する")
-                            .foregroundColor(.primary) //明示的に指定（必要に応じて）
+                            .foregroundColor(.primary)
                     }
 
                     NavigationLink(destination: TermsView()) {
@@ -93,11 +133,13 @@ struct SettingsView: View {
                         Text("プライバシーポリシー (外部リンク)")
                     }
 
+                    // 変更: パスワード再設定メールもクールダウン付きに
                     Button {
                         showingResetConfirmAlert = true
                     } label: {
-                        Text("パスワードを変更")
+                        Text(resetResendRemaining > 0 ? "パスワードを変更（\(resetResendRemaining)s）" : "パスワードを変更")
                     }
+                    .disabled(resetResendRemaining > 0)
                     .alert("パスワード変更のためのメールを送信しますか？", isPresented: $showingResetConfirmAlert) {
                         Button("送信", role: .none) {
                             sendPasswordResetEmail()
@@ -107,10 +149,6 @@ struct SettingsView: View {
                         Text("※BEEF+ とは異なるパスワードでアカウントを作成してしまった場合のみ使用してください。")
                     }
 
-//                    Text("BEEF+ と異なるパスワードで作成してしまった場合のみ使用してください。")
-//                        .font(.caption)
-//                        .foregroundColor(.secondary)
-                    
                     Button(action: {
                         if let url = URL(string: "https://forms.gle/1bdUg6UyFgASGwNR6") {
                             UIApplication.shared.open(url)
@@ -142,11 +180,12 @@ struct SettingsView: View {
                     }
                 }
             }
-            .background(Color.clear) //Formの背景を透明にして親ビューに従わせる
-            .scrollContentBackground(.hidden) //背景色の変更に使用
+            .background(Color.clear)
+            .scrollContentBackground(.hidden)
         }
         .onAppear {
             loadSavedBarcodeImage()
+            refreshVerificationState() // 変更: 画面表示時に確認状態を更新
         }
         .alert("パスワード再設定", isPresented: $showingResetAlert, presenting: resetMessage) { _ in
             Button("OK", role: .cancel) {}
@@ -157,23 +196,142 @@ struct SettingsView: View {
             Button("ログアウト", role: .destructive, action: logout)
             Button("キャンセル", role: .cancel) {}
         }
+        .onDisappear {
+            // 変更: タイマーのクリーンアップ
+            verifyResendTimer?.invalidate()
+            verifyResendTimer = nil
+            resetResendTimer?.invalidate()
+            resetResendTimer = nil
+        }
     }
 
+    // MARK: - メール確認（再送）
+
+    // 変更: 確認状態の即時更新
+    private func refreshVerificationState() {
+        Auth.auth().currentUser?.reload { _ in
+            self.isVerified = Auth.auth().currentUser?.isEmailVerified ?? false
+        }
+    }
+
+    // 変更: 汎用クールダウンセット（確認メール）
+    private func startVerifyCooldown(_ sec: Int) {
+        verifyResendRemaining = max(0, sec)
+        verifyResendTimer?.invalidate()
+        guard sec > 0 else { return }
+        verifyResendTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { t in
+            if self.verifyResendRemaining > 0 {
+                self.verifyResendRemaining -= 1
+            } else {
+                t.invalidate()
+            }
+        }
+    }
+
+    // 変更: 汎用クールダウンセット（パスワードリセット）
+    private func startResetCooldown(_ sec: Int) {
+        resetResendRemaining = max(0, sec)
+        resetResendTimer?.invalidate()
+        guard sec > 0 else { return }
+        resetResendTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { t in
+            if self.resetResendRemaining > 0 {
+                self.resetResendRemaining -= 1
+            } else {
+                t.invalidate()
+            }
+        }
+    }
+
+    // 変更: Dynamic Links 非依存（ActionCodeSettings なし）で再送
+    private func resendVerificationEmail() {
+        // クールダウン中は何もしない
+        guard verifyResendRemaining == 0 else { return }
+
+        // 状態更新
+        Auth.auth().currentUser?.reload(completion: { reloadError in
+            if let e = reloadError {
+                // ネットワーク等の一時的な失敗 → 短いクールダウン
+                self.resetMessage = "状態更新エラー: \(e.localizedDescription)"
+                self.showingResetAlert = true
+                self.startVerifyCooldown(60) // 変更: 60秒
+                return
+            }
+
+            // すでに確認済みなら終了
+            if Auth.auth().currentUser?.isEmailVerified == true {
+                self.isVerified = true
+                self.resetMessage = "✅ すでにメール確認が完了しています。"
+                self.showingResetAlert = true
+                return
+            }
+
+            Auth.auth().currentUser?.sendEmailVerification(completion: { error in
+                if let error = error as NSError? {
+                    let code = AuthErrorCode(_bridgedNSError: error)?.code
+                    switch code {
+                    case .tooManyRequests:
+                        self.resetMessage = "送信が多すぎます。しばらく待ってから再度お試しください。"
+                        self.startVerifyCooldown(600) // 変更: 10分
+                    case .networkError:
+                        self.resetMessage = "ネットワークエラー。接続を確認してから再度お試しください。"
+                        self.startVerifyCooldown(120) // 変更: 2分
+                    case .userDisabled:
+                        self.resetMessage = "このアカウントは無効化されています。"
+                        self.startVerifyCooldown(600)
+                    case .invalidRecipientEmail, .invalidSender, .invalidMessagePayload:
+                        self.resetMessage = "メール送信設定に問題があります。時間をおいてお試しください。"
+                        self.startVerifyCooldown(300)
+                    default:
+                        self.resetMessage = "再送信に失敗しました: \(error.localizedDescription)"
+                        self.startVerifyCooldown(180) // 変更: デフォルト3分
+                    }
+                } else {
+                    self.resetMessage = "\(self.email) に確認メールを再送しました。受信トレイと迷惑メールをご確認ください。"
+                    self.startVerifyCooldown(180) // 変更: 成功時3分
+                }
+                self.showingResetAlert = true
+            })
+        })
+    }
+
+    // MARK: - パスワード再設定
+
     private func sendPasswordResetEmail() {
-        guard let email = Auth.auth().currentUser?.email, !email.isEmpty else {
+        guard !email.isEmpty else {
             self.resetMessage = "メールアドレスを確認できませんでした。再度ログインし直してください。"
             self.showingResetAlert = true
             return
         }
+
+        // 変更: クールダウン中は送信せず
+        guard resetResendRemaining == 0 else { return }
+
         Auth.auth().sendPasswordReset(withEmail: email) { error in
-            if let error = error {
-                self.resetMessage = "送信に失敗しました: \(error.localizedDescription)"
+            if let error = error as NSError? {
+                let code = AuthErrorCode(_bridgedNSError: error)?.code
+                switch code {
+                case .tooManyRequests:
+                    self.resetMessage = "送信が多すぎます。しばらく待ってから再度お試しください。"
+                    self.startResetCooldown(600) // 変更: 10分
+                case .networkError:
+                    self.resetMessage = "ネットワークエラー。接続を確認してから再度お試しください。"
+                    self.startResetCooldown(120) // 変更: 2分
+                case .userNotFound:
+                    self.resetMessage = "ユーザーが見つかりません。再ログイン後にお試しください。"
+                    self.startResetCooldown(180)
+                default:
+                    self.resetMessage = "送信に失敗しました: \(error.localizedDescription)"
+                    self.startResetCooldown(180) // 変更: デフォルト3分
+                }
             } else {
-                self.resetMessage = "\(email) にパスワード再設定用のメールを送信しました。受信トレイと迷惑メールをご確認ください。"
+                self.resetMessage = "\(self.email) にパスワード再設定用のメールを送信しました。受信トレイと迷惑メールをご確認ください。"
+                self.startResetCooldown(180) // 変更: 成功時3分
             }
             self.showingResetAlert = true
         }
     }
+
+    // MARK: - ログアウト
 
     private func logout() {
         do {
@@ -187,6 +345,8 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - 図書館バーコード
+
     private func loadSavedBarcodeImage() {
         isFetchingBarcode = true
         DispatchQueue.global().async {
@@ -198,6 +358,8 @@ struct SettingsView: View {
         }
     }
     
+    // MARK: - アカウント削除
+
     @MainActor
     private func deleteAccount() async {
         deleting = true
@@ -301,4 +463,3 @@ struct SettingsView: View {
         deleteStep = nil
     }
 }
-

@@ -25,9 +25,9 @@ struct InitialSetupView: View {
     @State private var showingTerms = false
     @State private var showingAlert = false
     
-    @State private var didSendFirstEmail = false         // 🔺 初回送信済みフラグ
-    @State private var resendRemaining = 0               // 🔺 クールダウン残り秒（0で即時可）
-    @State private var resendTimer: Timer?               // 🔺 クールダウン用タイマー
+    @State private var didSendFirstEmail = false
+    @State private var resendRemaining = 0
+    @State private var resendTimer: Timer?
 
     var body: some View {
         NavigationView {
@@ -57,9 +57,7 @@ struct InitialSetupView: View {
                 
                 VStack(spacing: 0) {
                     HStack(spacing: 4) {
-                        Button(action: {
-                            showingTerms = true
-                        }) {
+                        Button(action: { showingTerms = true }) {
                             Text("利用規約")
                                 .foregroundColor(.blue)
                                 .fontWeight(.bold)
@@ -96,32 +94,28 @@ struct InitialSetupView: View {
                 .frame(maxWidth: .infinity)
                 .padding(10)
                 .frame(height: 48)
-                //.background((studentNumber.isEmpty || password.isEmpty) ? Color.gray : Color(hex: "#6EC1E4"))
                 .background((studentNumber.isEmpty || password.isEmpty) ? Color.gray : Color(hex: "#4B3F96"))
                 .foregroundColor(.white)
                 .cornerRadius(8)
                 .disabled(studentNumber.isEmpty || password.isEmpty)
                 .padding(.horizontal)
                 
-                 // 🔺 再送信ボタン（未確認時のみ表示）
-                 if shouldShowResendButton {
-                     HStack(spacing: 6) {
-                         Text("メールが届きませんか？")
-                             .font(.footnote)
-                             .foregroundColor(.secondary)
-                         Button(action: resendVerificationEmail) {
-                             Text(resendRemaining > 0 ? "メールを再送信（\(resendRemaining)s）" : "メールを再送信")
-                                 .font(.footnote.weight(.semibold))
-                                 .underline()
-                                 .foregroundColor(.blue)
-                         }
-                         .buttonStyle(PlainButtonStyle())
-                         .disabled(resendRemaining > 0)
-                     }
-                     .padding(.horizontal)
-                 }
-                
-                
+                if shouldShowResendButton {
+                    HStack(spacing: 6) {
+                        Text("メールが届きませんか？")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                        Button(action: resendVerificationEmail) {
+                            Text(resendRemaining > 0 ? "メールを再送信（\(resendRemaining)s）" : "メールを再送信")
+                                .font(.footnote.weight(.semibold))
+                                .underline()
+                                .foregroundColor(.blue)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .disabled(resendRemaining > 0)
+                    }
+                    .padding(.horizontal)
+                }
 
                 if !message.isEmpty {
                     Text(message)
@@ -133,15 +127,12 @@ struct InitialSetupView: View {
 
                 Spacer()
 
-                //ログインリンク追加部分
                 HStack {
                     Text("既にアカウントをお持ちの場合")
                         .font(.footnote)
                         .foregroundColor(.gray)
 
-                    Button(action: {
-                        showSigninView = true
-                    }) {
+                    Button(action: { showSigninView = true }) {
                         Text("ログイン")
                             .font(.footnote)
                             .foregroundColor(.blue)
@@ -150,11 +141,10 @@ struct InitialSetupView: View {
                 }
                 .padding(.bottom)
                 .fullScreenCover(isPresented: $showSigninView) {
-                    SigninView(onComplete: onComplete) // ← SigninView に遷移
+                    SigninView(onComplete: onComplete)
                 }
             }
             .padding()
-            //.navigationTitle("新規登録")
             .onAppear {
                 if let user = Auth.auth().currentUser, user.isEmailVerified {
                     if let email = user.email {
@@ -165,14 +155,14 @@ struct InitialSetupView: View {
             }
             .onDisappear {
                 timer?.invalidate()
-                resendTimer?.invalidate()   // 🔺クールダウンタイマーも止める
+                resendTimer?.invalidate()
                 resendTimer = nil
             }
             .sheet(isPresented: $showingTerms) {
                 TermsView()
             }
             .onTapGesture {
-                UIApplication.shared.endEditing() //画面外をタップでキーボードを閉じる
+                UIApplication.shared.endEditing()
             }
             .alert("確認メールを送信しました", isPresented: $showingAlert) {
                 Button("OK", role: .cancel) { }
@@ -190,20 +180,20 @@ struct InitialSetupView: View {
                 return
             }
 
-            Auth.auth().languageCode = "ja" // 🔺日本語テンプレ（コンソール設定が必要）
+            Auth.auth().languageCode = "ja"
+            // 変更: ActionCodeSettings を使わずに送信（＝続行URLの用意が不要）
             result?.user.sendEmailVerification { error in
                 if let error = error {
                     self.message = "認証メール送信エラー: \(error.localizedDescription)"
                 } else {
                     self.message = ""
-                    self.showingAlert = true //アラートを表示
-                    self.didSendFirstEmail = true         // 🔺 再送信ボタンを出す
-                    self.startVerificationPolling()       // 🔺 確認完了ポーリング開始
+                    self.showingAlert = true
+                    self.didSendFirstEmail = true
+                    self.startVerificationPolling()
                 }
             }
+            // 変更ここまで
         }
-        
-        
     }
 
     private func setCooldown(_ seconds: Int) {
@@ -220,14 +210,11 @@ struct InitialSetupView: View {
     }
 
     private func resendVerificationEmail() {
-        // 1) クールダウン中は何もしない
         if self.resendRemaining > 0 { return }
 
-        // 2) 最新状態を確認（既に確認済みなら送らない）
         Auth.auth().currentUser?.reload(completion: { reloadError in
             if let reloadError = reloadError {
                 self.message = "状態更新エラー: \(reloadError.localizedDescription)"
-                // ネットワーク不調時などは短いクールダウン
                 self.setCooldown(60)
                 return
             }
@@ -238,18 +225,17 @@ struct InitialSetupView: View {
                 return
             }
 
-            // 3) まだ未確認 → 再送信
+            // 変更: こちらも ActionCodeSettings なしで再送
             Auth.auth().currentUser?.sendEmailVerification(completion: { error in
                 if let error = error as NSError? {
-                    // エラーコードに応じて待ち時間を変える
                     let code = AuthErrorCode(_bridgedNSError: error)?.code
                     switch code {
                     case .tooManyRequests:
                         self.message = "送信が多すぎます。しばらく待ってから再度お試しください。"
-                        self.setCooldown(600) // 10分の待機
+                        self.setCooldown(600)
                     case .networkError:
                         self.message = "ネットワークエラー。接続を確認してから再度お試しください。"
-                        self.setCooldown(120) // 2分
+                        self.setCooldown(120)
                     case .userDisabled:
                         self.message = "このアカウントは無効化されています。"
                         self.setCooldown(600)
@@ -258,15 +244,15 @@ struct InitialSetupView: View {
                         self.setCooldown(300)
                     default:
                         self.message = "再送信に失敗しました: \(error.localizedDescription)"
-                        self.setCooldown(180) // デフォルトの待機
+                        self.setCooldown(180)
                     }
                 } else {
                     self.message = "メールを再送信しました。受信トレイと迷惑メールをご確認ください。"
                     self.showingAlert = true
-                    // 成功時のクールダウン（長め）
-                    self.setCooldown(180) // 3分
+                    self.setCooldown(180)
                 }
             })
+            // 変更ここまで
         })
     }
 
@@ -281,7 +267,6 @@ struct InitialSetupView: View {
 
                 if Auth.auth().currentUser?.isEmailVerified == true {
                     self.timer?.invalidate()
-                    // 🔺 確認完了時に再送信UI/タイマーもクリア
                     self.didSendFirstEmail = false
                     self.resendTimer?.invalidate()
                     self.resendRemaining = 0
@@ -316,29 +301,23 @@ struct InitialSetupView: View {
                 print("Firestoreにユーザー情報を保存しました")
             }
         }
-        
-        
     }
 }
 
 extension Color {
     init(hex: String) {
         let scanner = Scanner(string: hex)
-        _ = scanner.scanString("#") // "#" をスキップ
-
+        _ = scanner.scanString("#")
         var rgb: UInt64 = 0
         scanner.scanHexInt64(&rgb)
-
         let r = Double((rgb >> 16) & 0xFF) / 255.0
         let g = Double((rgb >> 8) & 0xFF) / 255.0
         let b = Double(rgb & 0xFF) / 255.0
-
         self.init(red: r, green: g, blue: b)
     }
 }
 
 extension InitialSetupView {
-    /// 🔺再送信リンクの表示条件：初回送信後のみ表示
     var shouldShowResendButton: Bool {
         return didSendFirstEmail
     }

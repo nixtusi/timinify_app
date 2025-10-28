@@ -20,7 +20,7 @@ struct SigninView: View {
     @State private var resendRemaining = 0
     @State private var resendTimer: Timer?
     
-    @State private var showInitialSetupView = false //画面遷移トリガー
+    @State private var showInitialSetupView = false
     @State private var showSetupFlowView = false
 
     var body: some View {
@@ -106,15 +106,12 @@ struct SigninView: View {
 
                 Spacer()
 
-                // 下部のログインリンク表示
                 HStack {
                     Text("まだアカウントをお持ちでない場合")
                         .font(.footnote)
                         .foregroundColor(.gray)
 
-                    Button(action: {
-                        showInitialSetupView = true
-                    }) {
+                    Button(action: { showInitialSetupView = true }) {
                         Text("新規登録")
                             .font(.footnote)
                             .foregroundColor(.blue)
@@ -122,28 +119,20 @@ struct SigninView: View {
                     }
                 }
                 .padding(.bottom)
-
-                
-                
             }
             .padding()
             .navigationBarHidden(true)
             .navigationBarBackButtonHidden(true)
-            //.fullScreenCover は VStack全体に適用
             .fullScreenCover(isPresented: $showInitialSetupView) {
                 InitialSetupView(onComplete: onComplete)
             }
-            
             .fullScreenCover(isPresented: $showSetupFlowView) {
                 SetupFlowView {
-                    // 「次へ」 or 「スキップ」で呼ばれる
                     showSetupFlowView = false
                     onComplete()
                 }
             }
-            .onTapGesture {
-                UIApplication.shared.endEditing() //キーボード外をタップでキーボードを閉じる
-            }
+            .onTapGesture { UIApplication.shared.endEditing() }
             .onDisappear {
                 resendTimer?.invalidate()
                 resendTimer = nil
@@ -179,15 +168,11 @@ struct SigninView: View {
                     }
 
                     if user.isEmailVerified {
-                        // 保存と状態更新
                         UserDefaults.standard.set(self.studentID, forKey: "studentNumber")
                         UserDefaults.standard.set(self.password, forKey: "loginPassword")
                         self.appState.studentNumber = self.studentID
-                        //self.onComplete()
-                        //self.showSetupFlowView = true // ✅ ここでセットアップ画面へ
                         self.showSetupFlowView = true
                     } else {
-                        // メール未認証 → ログアウトして再送UIを出す
                         self.errorMessage = "メール認証がまだ完了していません。受信トレイ（迷惑メール含む）をご確認ください。"
                         self.showResendSection = true
                         try? Auth.auth().signOut()
@@ -211,14 +196,12 @@ struct SigninView: View {
     }
 
     private func resendVerificationEmail() {
-        // クールダウン中は何もしない
         if self.resendRemaining > 0 { return }
 
-        // 最新状態を確認（既に確認済みなら案内して終わり）
         Auth.auth().currentUser?.reload(completion: { reloadError in
             if let reloadError = reloadError {
                 self.errorMessage = "状態更新エラー: \(reloadError.localizedDescription)"
-                self.setCooldown(60) // 一旦短めの待機
+                self.setCooldown(60)
                 return
             }
 
@@ -228,17 +211,17 @@ struct SigninView: View {
                 return
             }
 
-            // 未確認 → 再送信
+            // 変更: こちらも ActionCodeSettings なしで再送（続行URLの準備不要）
             Auth.auth().currentUser?.sendEmailVerification(completion: { err in
                 if let err = err as NSError? {
                     let code = AuthErrorCode(_bridgedNSError: err)?.code
                     switch code {
                     case .tooManyRequests:
                         self.errorMessage = "送信が多すぎます。しばらく待ってから再度お試しください。"
-                        self.setCooldown(600) // 10分待機
+                        self.setCooldown(600)
                     case .networkError:
                         self.errorMessage = "ネットワークエラー。接続を確認してから再度お試しください。"
-                        self.setCooldown(120) // 2分
+                        self.setCooldown(120)
                     case .userDisabled:
                         self.errorMessage = "このアカウントは無効化されています。"
                         self.setCooldown(600)
@@ -251,9 +234,10 @@ struct SigninView: View {
                     }
                 } else {
                     self.errorMessage = "確認メールを再送しました。受信トレイと迷惑メールをご確認ください。"
-                    self.setCooldown(180) // 成功時は長めに
+                    self.setCooldown(180)
                 }
             })
+            // 変更ここまで
         })
     }
 }

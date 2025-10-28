@@ -26,9 +26,13 @@ struct TimetableView: View {
     }
     
     // Wrapperを定義
-    struct TimetableItemWrapper: Identifiable, Hashable {
+    // 変更: onChangeで利用できるように Equatable を追加（idで比較）
+    struct TimetableItemWrapper: Identifiable, Hashable, Equatable {
         let id = UUID()
         let item: TimetableItem
+        static func == (lhs: TimetableItemWrapper, rhs: TimetableItemWrapper) -> Bool {
+            lhs.id == rhs.id
+        }
     }
     
     //@State private var selectedCourse: TimetableItem?
@@ -49,14 +53,6 @@ struct TimetableView: View {
                 contentBody
             }
             .background(Color(.systemGroupedBackground))
-//            .navigationDestination(item: $selectedCourse) { course in
-//                LectureDetailView(
-//                    lectureCode: course.code,
-//                    dayPeriod: "\(course.day)\(course.period)",
-//                    year: String(selectedYear),
-//                    quarter: "Q\(selectedQuarter)"
-//                )
-//            }
             .navigationDestination(item: $selectedCourse) { wrapper in
                 let course = wrapper.item
                 LectureDetailView(
@@ -68,19 +64,6 @@ struct TimetableView: View {
             }
             .navigationTitle("時間割")
             .task {
-//                if admissionYear == nil {
-//                    if let prefix = Int(studentNumber.prefix(2)) {
-//                        let year = 2000 + prefix
-//                        self.admissionYear = year
-//
-//                        if !hasInitializedYear {
-//                            self.selectedYear = year
-//                            self.hasInitializedYear = true
-//                        }
-//
-//                    }
-//                }
-                
                 if admissionYear == nil {
                     if let prefix = Int(studentNumber.prefix(2)) {
                         let year = 2000 + prefix
@@ -116,29 +99,43 @@ struct TimetableView: View {
             .onAppear {
                 reloadFromRemote()
             }
-            .onChange(of: selectedGrade) { _ in
+
+            // ==== ここから onChange の非推奨対応（互換レイヤーで置換）====
+
+            // 変更: selectedGrade の変更監視（iOS17+: 2引数 / それ未満: 従来）
+            .modifier(OnChangeCompat(value: selectedGrade) { newGrade in
                 if let base = admissionYear {
-                    self.selectedYear = base + (selectedGrade - 1)
+                    self.selectedYear = base + (newGrade - 1)
                 } else {
-                    let base = selectedYear - (selectedGrade - 1)
-                    self.selectedYear = base + (selectedGrade - 1)
+                    let base = selectedYear - (newGrade - 1)
+                    self.selectedYear = base + (newGrade - 1)
                 }
                 // 年度を変えた直後は即リロード
                 reloadFromRemote()
-            }
-            .onChange(of: selectedYear) { _ in
+            })
+
+            // 変更: selectedYear の変更監視
+            .modifier(OnChangeCompat(value: selectedYear) { _ in
                 reloadFromRemote()
-            }
-            .onChange(of: selectedQuarter) { _ in
+            })
+
+            // 変更: selectedQuarter の変更監視
+            .modifier(OnChangeCompat(value: selectedQuarter) { _ in
                 reloadFromRemote()
-            }
-            .onChange(of: selectedCourse) { newValue in
+            })
+
+            // 変更: selectedCourse の変更監視（閉じて戻ったらリロード）
+            .modifier(OnChangeCompat(value: selectedCourse) { newValue in
                 if newValue == nil { reloadFromRemote() }
-            }
-            // フォアグラウンド復帰の2つも bumpReload ではなく直で
-            .onChange(of: scenePhase) { phase in
+            })
+
+            // 変更: scenePhase の変更監視（iOS17対応）
+            .modifier(OnChangeCompat(value: scenePhase) { phase in
                 if phase == .active { reloadFromRemote() }
-            }
+            })
+
+            // ==== ここまで onChange の非推奨対応 ====
+
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                 reloadFromRemote()
             }
@@ -151,25 +148,6 @@ struct TimetableView: View {
     
     private var controlPanel: some View {
         HStack {
-//            //年度ピッカー
-//            Picker(selection: $selectedYear, label:
-//                Text(verbatim: "\(selectedYear)年度")
-//                    .font(.body.weight(.bold))
-//                    .foregroundColor(.gray)
-//            ) {
-//                if let baseYear = admissionYear {
-//                    ForEach(baseYear...(baseYear + 3), id: \.self) { year in
-//                        Text(verbatim: "\(year)年度").tag(year)
-//                    }
-//                } else {
-//                    ForEach(2023...2026, id: \.self) { year in
-//                        Text(verbatim: "\(year)年度").tag(year)
-//                    }
-//                }
-//            }
-//            .pickerStyle(MenuPickerStyle())
-//            .tint(.gray)
-            
             // 学年ピッカー（1〜4年生）
             Picker(selection: $selectedGrade, label:
                 Text("\(selectedGrade)年")
@@ -182,7 +160,6 @@ struct TimetableView: View {
                 }
             }
             .pickerStyle(MenuPickerStyle())
-            //.pickerStyle(.segmented)
             .tint(.gray)
 
             // クォーターピッカー
@@ -200,15 +177,6 @@ struct TimetableView: View {
             .tint(.gray)
 
             Spacer()
-//            Button(action: {
-//                reloadFromRemote()
-//            }) {
-//                Label("更新", systemImage: "arrow.clockwise")
-//            }
-//            .buttonStyle(.bordered)
-//            .controlSize(.regular)
-//            .keyboardShortcut("r", modifiers: .command)
-//            .accessibilityLabel("時間割を更新")
         }
         .padding(.horizontal)
         .padding(.vertical, 4)
@@ -398,7 +366,6 @@ struct TimetableView: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
                     .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                    //.stroke(Color.primary.opacity(0.3), lineWidth: 1)
             )
         }
     }
@@ -439,4 +406,29 @@ struct TimetableView: View {
 extension Notification.Name {
     /// 時間割（色など）の更新があったときに投げる通知
     static let timetableDidChange = Notification.Name("timetableDidChange")
+}
+
+// MARK: - 変更: iOS 17+ とそれ未満を吸収する onChange 互換 ViewModifier
+/// iOS 17 以降は `onChange(of:) { old, new in }` を、
+/// それ未満では従来の `onChange(of:perform:)` を使う互換レイヤー。
+private struct OnChangeCompat<Value: Equatable>: ViewModifier {
+    let value: Value
+    let action: (Value) -> Void
+    
+    func body(content: Content) -> some View {
+        if #available(iOS 17.0, *) {
+            content.onChange(of: value) { _, newValue in
+                action(newValue) // 変更: 2引数クロージャ（newValueを渡す）
+            }
+        } else {
+            content.onChange(of: value, perform: action) // 変更: 旧API
+        }
+    }
+}
+
+private extension View {
+    /// 変更: 糖衣構文が必要であればこちらを利用（今回は `.modifier(OnChangeCompat(...))` を直接使用）
+    func onChangeCompat<Value: Equatable>(of value: Value, perform action: @escaping (Value) -> Void) -> some View {
+        modifier(OnChangeCompat(value: value, action: action))
+    }
 }
