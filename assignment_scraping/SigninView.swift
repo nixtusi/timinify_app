@@ -28,7 +28,7 @@ struct SigninView: View {
             VStack(spacing: 24) {
                 Spacer()
 
-                Text("ログイン")
+                Text("Uni Time")
                     .font(.system(size: 32, weight: .bold))
 
                 VStack(spacing: 16) {
