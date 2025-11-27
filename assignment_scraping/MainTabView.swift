@@ -1,69 +1,68 @@
 //
-//  TaskListView.swift
+//  MainTabView.swift
 //  assignment_scraping
 //
 //  Created by Yuta Nisimatsu on 2025/05/05.
-//
 //
 
 import SwiftUI
 
 struct MainTabView: View {
-    @State private var showServerOffAlert = false
     @EnvironmentObject var appState: AppState
+    
+    // タブ選択状態の管理
+    @State private var selection: Tab = .timetable
+    
+    // 各タブのNavigationStack用パス
+    @State private var timetablePath = NavigationPath()
+    @State private var taskPath = NavigationPath()
+    @State private var settingsPath = NavigationPath()
 
-    var body: some View {
-        VStack(spacing: 0) {
-
-            TabView {
-                NavigationView {
-                    TimetableView()
-                }
-                .tabItem {
-                    Label("時間割", systemImage: "calendar")
-                }
-
-                NavigationView {
-                    TaskListView()
-                        .navigationTitle("課題")
-                }
-                .tabItem {
-                    Label("課題", systemImage: "list.bullet")
-                }
-
-                NavigationView {
-                    SettingsView()
-                        .navigationTitle("設定")
-                }
-                .tabItem {
-                    Label("設定", systemImage: "gear")
-                }
-            }
-        }
-        .onAppear {
-            checkServerTime()
-            print("🧾 学籍番号（Firebase Auth）: \(appState.studentNumber)")
-        }
-//        .alert(isPresented: $showServerOffAlert) {
-//            Alert(
-//                title: Text("サーバー停止中"),
-//                message: Text("現在（0:10〜6:00）はサーバーを停止しているため、新たな情報取得はできません。"),
-//                dismissButton: .default(Text("OK"))
-//            )
-//        }
+    enum Tab {
+        case timetable, task, settings
     }
 
-    private func checkServerTime() {
-        let now = Date()
-        let calendar = Calendar.current
-        let components = calendar.dateComponents([.hour, .minute], from: now)
+    var body: some View {
+        TabView(selection: Binding(
+            get: { selection },
+            set: { newSelection in
+                if newSelection == selection {
+                    // 同じタブがタップされたらルートに戻る
+                    switch newSelection {
+                    case .timetable: timetablePath = NavigationPath()
+                    case .task: taskPath = NavigationPath()
+                    case .settings: settingsPath = NavigationPath()
+                    }
+                }
+                selection = newSelection
+            }
+        )) {
+            NavigationStack(path: $timetablePath) {
+                TimetableView()
+            }
+            .tabItem {
+                Label("時間割", systemImage: "calendar")
+            }
+            .tag(Tab.timetable)
 
-        let hour = components.hour ?? 0
-        let minute = components.minute ?? 0
-        let totalMinutes = hour * 60 + minute
+            NavigationStack(path: $taskPath) {
+                TaskListView()
+                    .navigationTitle("課題")
+            }
+            .tabItem {
+                Label("課題", systemImage: "list.bullet")
+            }
+            .tag(Tab.task)
 
-        if totalMinutes >= 10 && totalMinutes < 360 {
-            showServerOffAlert = true
+            NavigationStack(path: $settingsPath) {
+                SettingsView()
+                    .navigationTitle("設定")
+            }
+            .tabItem {
+                Label("設定", systemImage: "gear")
+            }
+            .tag(Tab.settings)
         }
+        .accentColor(Color(hex: "#4B3F96")) // タブの選択色も統一
     }
 }

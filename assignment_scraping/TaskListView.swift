@@ -43,8 +43,10 @@ struct TaskListView: View {
                                     .foregroundColor(.primary)
 
                                 HStack {
-                                    Text("締切: \(beefTask.deadline)")
+                                    // 曜日付きの締切表示
+                                    Text("締切: \(beefTask.formattedDeadlineWithDay)")
                                         .font(.footnote)
+                                        .fontWeight(.bold)
                                     Spacer()
                                     Text(beefTask.timeRemaining)
                                         .font(.footnote)

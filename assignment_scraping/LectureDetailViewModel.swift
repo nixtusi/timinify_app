@@ -65,9 +65,23 @@ class LectureDetailViewModel: ObservableObject {
         }
     }
     
-    // MARK: - ② シラバス情報を取得（完全一致→前方一致）
+    // MARK: - ② シラバス情報を取得（ローカルキャッシュ対応 + 完全一致→前方一致）
     @MainActor
     func fetchSyllabus(year: String, quarter: String, day: String, code: String) async {
+        let cacheKey = "syllabus_\(year)_\(code)"
+        
+        // 1. キャッシュ確認
+        if let cachedData = UserDefaults.standard.data(forKey: cacheKey),
+           let cachedSyllabus = try? JSONDecoder().decode(Syllabus.self, from: cachedData) {
+            self.syllabus   = cachedSyllabus
+            self.credits    = cachedSyllabus.credits
+            self.evaluation = cachedSyllabus.evaluation
+            self.references = cachedSyllabus.references
+            print("📦 シラバス: キャッシュから読み込み (\(code))")
+            return
+        }
+        
+        // 2. なければFirestoreから取得（既存ロジック）
         let quarterSearchOrder: [String: [String]] = [
             "第1クォーター": ["第1クォーター"],
             "第2クォーター": ["第2クォーター", "第1クォーター"],
@@ -92,7 +106,7 @@ class LectureDetailViewModel: ObservableObject {
             do {
                 let exactDoc = try await collectionRef.document(code).getDocument()
                 if exactDoc.exists, let data = exactDoc.data() {
-                    applySyllabusData(data)
+                    applySyllabusData(data, year: year, code: code)
                     print("✅ シラバス取得（完全一致）: \(q) / \(day) / \(code)")
                     return
                 }
@@ -104,7 +118,7 @@ class LectureDetailViewModel: ObservableObject {
             do {
                 let snapshot = try await collectionRef.getDocuments()
                 if let matched = snapshot.documents.first(where: { $0.documentID.hasPrefix(codePrefix) }) {
-                    applySyllabusData(matched.data())
+                    applySyllabusData(matched.data(), year: year, code: code)
                     print("✅ シラバス取得（前方一致: \(matched.documentID)）")
                     return
                 }
@@ -118,7 +132,7 @@ class LectureDetailViewModel: ObservableObject {
     
     // MARK: - シラバスデータをViewModelに反映
     @MainActor
-    private func applySyllabusData(_ data: [String: Any]) {
+    private func applySyllabusData(_ data: [String: Any], year: String, code: String) {
         let decodedTextbooks = decodeTextbookContent(from: data["教科書"])
         
         let s = Syllabus(
@@ -150,6 +164,13 @@ class LectureDetailViewModel: ObservableObject {
         self.credits    = s.credits
         self.evaluation = s.evaluation
         self.references = s.references
+        
+        // キャッシュ保存
+        if let encoded = try? JSONEncoder().encode(s) {
+            let cacheKey = "syllabus_\(year)_\(code)"
+            UserDefaults.standard.set(encoded, forKey: cacheKey)
+            print("💾 シラバス: キャッシュへ保存 (\(code))")
+        }
     }
     
     // MARK: - 教科書データの柔軟デコード
