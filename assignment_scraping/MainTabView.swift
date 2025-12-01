@@ -19,7 +19,7 @@ struct MainTabView: View {
     @State private var settingsPath = NavigationPath()
 
     enum Tab {
-        case timetable, task, settings
+        case timetable, task,search, settings
     }
 
     var body: some View {
@@ -32,6 +32,7 @@ struct MainTabView: View {
                     case .timetable: timetablePath = NavigationPath()
                     case .task: taskPath = NavigationPath()
                     case .settings: settingsPath = NavigationPath()
+                    case .search: break
                     }
                 }
                 selection = newSelection
@@ -53,6 +54,12 @@ struct MainTabView: View {
                 Label("課題", systemImage: "list.bullet")
             }
             .tag(Tab.task)
+            
+            SearchView()
+           .tabItem {
+               Label("検索", systemImage: "magnifyingglass")
+           }
+           .tag(Tab.search)
 
             NavigationStack(path: $settingsPath) {
                 SettingsView()
