@@ -334,8 +334,14 @@ struct TimetableView: View {
                         
                         Spacer()
                         
+                        // ✅ 修正: 教員名の表示仕様変更
                         Text(c.teacher)
-                            .font(.caption2)
+                            .font(.caption2)                 // 基本サイズ
+                            .lineLimit(2)                    // 最大2行まで
+                            .minimumScaleFactor(0.7)         // 枠に入りきらない場合、70%まで縮小許可
+                            .multilineTextAlignment(.center) // 中央揃えで見栄え良く
+                            .truncationMode(.tail)           // それでも溢れたら末尾を「…」にする
+                            .foregroundColor(.primary.opacity(0.8)) // 少し色を落として授業名と区別（お好みで）
                         
                         Text(c.room ?? "")
                             .font(.system(size: 12))              // 基本フォントサイズ

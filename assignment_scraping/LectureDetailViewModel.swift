@@ -45,8 +45,19 @@ class LectureDetailViewModel: ObservableObject {
                 self.room = timetableData?["room"] as? String ?? ""
                 self.colorHex = timetableData?["color"] as? String ?? "#FF3B30"
                 
-                if let cData = classData, self.room.isEmpty {
-                    self.room = cData["room"] as? String ?? ""
+//                if let cData = classData, self.room.isEmpty {
+//                    self.room = cData["room"] as? String ?? ""
+//                }
+                
+                // ✅ 修正: 共有データ(classData)のroomを最優先にする
+                // Aさんが変更したら、Bさんの画面でもここが参照されるようになります
+                let sharedRoom = classData?["room"] as? String ?? ""
+                let personalRoom = timetableData?["room"] as? String ?? ""
+                
+                if !sharedRoom.isEmpty {
+                    self.room = sharedRoom
+                } else {
+                    self.room = personalRoom
                 }
             }
             
@@ -257,3 +268,5 @@ class LectureDetailViewModel: ObservableObject {
         return counts
     }
 }
+
+
