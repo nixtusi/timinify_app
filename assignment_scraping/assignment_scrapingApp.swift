@@ -50,7 +50,7 @@ struct BeefTaskApp: App {
         if appState.isLoggedIn {
             MainTabView()
         } else {
-            InitialSetupView {
+            AuthView {
                 appState.isLoggedIn = true
             }
         }

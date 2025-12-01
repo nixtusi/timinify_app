@@ -2,11 +2,12 @@
 //  Extensions.swift
 //  assignment_scraping
 //
-//  Created by Yuta Nisimatsu on 2025/12/01.
+//  Created by Yuta Nisimatsu on 2025/06/11.
 //
 
 import SwiftUI
 
+// Color(hex: "#123456") のように使えるようにする拡張機能
 extension Color {
     init(hex: String) {
         let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
