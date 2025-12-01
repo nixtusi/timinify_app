@@ -9,40 +9,45 @@ import SwiftUI
 
 struct SyllabusDetailView: View {
     let syllabus: Syllabus
+    let day: String
+    let period: Int
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Group {
-
-                    if !syllabus.code.isEmpty {
-                        sectionViewInline(title: "時間割コード", content: syllabus.code)
-                    }
-                    
-                    sectionViewInline(title: "開講科目名", content: syllabus.title)
-                    
-                    if let input = syllabus.evaluationTeacher {
-                        sectionViewInline(title: "成績入力担当", content: input)
-                    }
-                    
-                    if let method = syllabus.method {
-                        sectionViewInline(title: "授業形態", content: method)
-                    }
-                    
-                    //単位数
-                    if let credits = syllabus.credits {
-                        sectionViewInline(title: "単位数", content: credits)
-                    }
-                    
-                    if let period = syllabus.schedule {
-                        sectionViewInline(title: "開講期間", content: period)
+            VStack(spacing: 20) { // セクション間のスペースを広めに
+                
+                // MARK: - 基本情報セクション
+                VStack(alignment: .leading, spacing: 16) {
+                    Group {
+                        if !syllabus.code.isEmpty {
+                            sectionViewInline(title: "時間割コード", content: syllabus.code)
+                        }
+                        
+                        sectionViewInline(title: "開講科目名", content: syllabus.title)
+                        
+                        if let input = syllabus.evaluationTeacher {
+                            sectionViewInline(title: "成績入力担当", content: input)
+                        }
+                        
+                        if let method = syllabus.method {
+                            sectionViewInline(title: "授業形態", content: method)
+                        }
+                        
+                        if let credits = syllabus.credits {
+                            sectionViewInline(title: "単位数", content: credits)
+                        }
+                        
+                        if let period = syllabus.schedule {
+                            sectionViewInline(title: "開講期間", content: period)
+                        }
                     }
                 }
-                    
-                Divider()
-            
-                Group{
-                    
+                .padding()
+                .background(Color(.secondarySystemGroupedBackground)) // カード風背景
+                .cornerRadius(12)
+                
+                // MARK: - 授業概要セクション
+                VStack(alignment: .leading, spacing: 16) {
                     if let theme = syllabus.theme {
                         sectionView(title: "授業のテーマ", content: theme)
                     }
@@ -50,8 +55,15 @@ struct SyllabusDetailView: View {
                         sectionView(title: "授業の到達目標", content: goals)
                     }
                     if let summary = syllabus.summary {
-                        sectionView(title: "授業の概要と計画", content: formatSyllabusText(summary))
+                        sectionView(title: "授業の概要と計画", content: summary)
                     }
+                }
+                .padding()
+                .background(Color(.secondarySystemGroupedBackground))
+                .cornerRadius(12)
+
+                // MARK: - 評価・履修情報セクション
+                VStack(alignment: .leading, spacing: 16) {
                     if let method = syllabus.evaluationMethod {
                         sectionView(title: "成績評価方法", content: method)
                     }
@@ -61,12 +73,16 @@ struct SyllabusDetailView: View {
                     if let remarks = syllabus.remarks {
                         sectionView(title: "履修上の注意", content: remarks)
                     }
-                    
-                    //機能してる？
                     if let prep = syllabus.preparationReview {
                         sectionView(title: "事前・事後学修", content: prep)
                     }
-                    
+                }
+                .padding()
+                .background(Color(.secondarySystemGroupedBackground))
+                .cornerRadius(12)
+
+                // MARK: - その他セクション
+                VStack(alignment: .leading, spacing: 16) {
                     if let contact = syllabus.contact {
                         sectionView(title: "オフィスアワー・連絡先", content: contact)
                     }
@@ -77,22 +93,24 @@ struct SyllabusDetailView: View {
                         sectionView(title: "今年度の工夫", content: improv)
                     }
                     
-                    // ✅ ここ差し替え（元の joined してた箇所を削除して↓に）
                     if let textbooks = syllabus.textbooks, !textbooks.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("教科書").font(.headline)
+                            Text("教科書")
+                                .font(.headline)
+                                .foregroundColor(.primary)
                             ForEach(textbooks) { book in
                                 if let url = book.url {
                                     Link(destination: url) {
                                         Text(book.displayText)
                                             .font(.body)
+                                            .underline()
                                     }
-                                    //.tint(.blue)               // ✅ 青文字
                                     .foregroundStyle(.blue)
-                                    .buttonStyle(.plain)       // （余計な装飾を消す）
+                                    .buttonStyle(.plain)
                                 } else {
                                     Text(book.displayText)
                                         .font(.body)
+                                        .foregroundColor(.primary)
                                 }
                             }
                         }
@@ -100,7 +118,7 @@ struct SyllabusDetailView: View {
                     }
                     
                     if let references = syllabus.references {
-                        sectionView(title: "参考書・参考資料等", content: references) // ← textbooks → references に修正
+                        sectionView(title: "参考書・参考資料等", content: references)
                     }
                     if let language = syllabus.language {
                         sectionView(title: "授業における使用言語", content: language)
@@ -109,27 +127,22 @@ struct SyllabusDetailView: View {
                         sectionView(title: "キーワード", content: keywords)
                     }
                     
-//                    if let url = syllabus.referenceURL {
-//                        sectionView(title: "参考URL", content: url)
-//                    }
-                    
-                    // ✅ 参考URL（URLとして有効なら青文字リンク）
                     if let urlStr = syllabus.referenceURL,
                        let url = URL(string: urlStr),
                        !urlStr.isEmpty {
-                        sectionViewLink(title: "参考URL", label: urlStr, url: url)   // ✅ 新関数
+                        sectionViewLink(title: "参考URL", label: urlStr, url: url)
                     } else if let urlStr = syllabus.referenceURL, !urlStr.isEmpty {
-                        sectionView(title: "参考URL", content: urlStr)               // URLじゃなければ従来どおり
+                        sectionView(title: "参考URL", content: urlStr)
                     }
                 }
+                .padding()
+                .background(Color(.secondarySystemGroupedBackground))
+                .cornerRadius(12)
             }
-            .padding()
+            .padding() // 全体の余白
         }
-        .onAppear { //確認
-            print("📝 preparationReview:", syllabus.preparationReview as Any)
-            print("📚 textbooks:", syllabus.textbooks as Any)
-        }
-        .navigationTitle("シラバス詳細")
+        .background(Color(.systemGroupedBackground)) // 全体の背景色
+        .navigationTitle("\(day)曜 \(period)限")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -139,72 +152,45 @@ struct SyllabusDetailView: View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(title)
                 .font(.headline)
+                .foregroundColor(.secondary) // ラベルは少し薄く
+                .frame(width: 120, alignment: .leading) // 幅を固定して整列
             Text(content)
                 .font(.body)
-                .lineLimit(1)                // 必要なら省略
-                .truncationMode(.tail)
+                .foregroundColor(.primary)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
     }
 
-      // MARK: - 従来の縦並び表示
-      private func sectionView(title: String, content: String) -> some View {
-          VStack(alignment: .leading, spacing: 6) {
-              Text(title)
-                  .font(.headline)
-              Text(content)
-                  .font(.body)
-                  .fixedSize(horizontal: false, vertical: true)
-          }
-          .padding(.bottom, 8)
-      }
+    // MARK: - 従来の縦並び表示
+    @ViewBuilder
+    private func sectionView(title: String, content: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.headline)
+                .foregroundColor(.primary)
+            Text(content)
+                .font(.body)
+                .foregroundColor(.primary) // 本文は濃い色で
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, 8) // 少しインデント
+                .padding(.top, 2)
+        }
+        .padding(.bottom, 8)
+    }
     
-    //改行
-    func formatSyllabusText(_ text: String) -> String {
-        var formatted = text
-        
-        // 全角数字を半角に変換
-        let fullToHalfNumbers: [Character: Character] = [
-            "１":"1", "２":"2", "３":"3", "４":"4", "５":"5",
-            "６":"6", "７":"7", "８":"8", "９":"9", "０":"0"
-        ]
-        formatted = String(formatted.map { fullToHalfNumbers[$0] ?? $0 })
-
-        // 「。」のあとに改行を挿入（段落）
-        formatted = formatted.replacingOccurrences(of: "。", with: "。\n")
-
-        // 「第〇回」「1 内容」などの前に改行
-        let patterns = [
-            "(?<!\\n)(第[0-9]{1,2}回)",           // 例: 第1回
-            "(?<!\\n)([0-9]{1,2}[．\\.、\\s])"    // 例: 1. や 2．や 3、
-        ]
-        for pattern in patterns {
-            if let regex = try? NSRegularExpression(pattern: pattern) {
-                let range = NSRange(location: 0, length: formatted.utf16.count)
-                formatted = regex.stringByReplacingMatches(in: formatted, options: [], range: range, withTemplate: "\n$1")
-            }
+    // MARK: - リンク付き表示
+    @ViewBuilder
+    private func sectionViewLink(title: String, label: String, url: URL) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.headline)
+                .foregroundColor(.primary)
+            Link(label, destination: url)
+                .foregroundStyle(.blue)
+                .buttonStyle(.plain)
+                .font(.body)
+                .padding(.leading, 8)
         }
-
-        // 連続改行を2つまでに制限
-        while formatted.contains("\n\n\n") {
-            formatted = formatted.replacingOccurrences(of: "\n\n\n", with: "\n\n")
-        }
-
-        return formatted.trimmingCharacters(in: .whitespacesAndNewlines)
+        .padding(.bottom, 8)
     }
-}
-
-// ✅ タイトル＋青文字リンクの共通ビュー
-@ViewBuilder
-private func sectionViewLink(title: String, label: String, url: URL) -> some View {
-    VStack(alignment: .leading, spacing: 6) {
-        Text(title)
-            .font(.headline)
-        Link(label, destination: url)
-            //.tint(.blue)                // 青文字
-            .foregroundStyle(.blue)
-            .buttonStyle(.plain)
-            .font(.body)
-    }
-    .padding(.bottom, 8)
 }

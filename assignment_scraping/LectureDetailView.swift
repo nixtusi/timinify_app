@@ -69,7 +69,11 @@ struct LectureDetailView: View {
             if let syllabus = viewModel.syllabus {
                 Section(header: Text("シラバス")) {
                     NavigationLink {
-                        SyllabusDetailView(syllabus: syllabus)
+                        SyllabusDetailView(
+                            syllabus: syllabus,
+                            day: String(dayPeriod.prefix(1)),
+                            period: Int(String(dayPeriod.suffix(1))) ?? 0
+                        )
                     } label: {
                         VStack(alignment: .leading, spacing: 8) {
                             if let credits = viewModel.credits {
