@@ -97,13 +97,25 @@ struct SettingsView: View {
                             } else if let image = barcodeImage {
                                 HStack {
                                     Spacer()
-                                    Image(uiImage: image)
-                                        .resizable()
-                                        .scaledToFit()
-                                        .frame(height: 100)
+                                    // ✅ VStackで画像とテキストを縦並びに
+                                    VStack(spacing: 4) {
+                                        Image(uiImage: image)
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(height: 100)
+                                        
+                                        // ✅ 追加: バーコード番号の表示
+                                        if let code = BarcodeManager.shared.getBarcodeNumber(for: studentNumber) {
+                                            Text(code)
+                                                .font(.caption)
+                                                .monospacedDigit() // 等幅数字で見やすく
+                                                .foregroundColor(.black)
+                                                .padding(.bottom, 8)
+                                        }
+                                    }
                                     Spacer()
                                 }
-                                .padding()
+                                .padding(.top) // 上の余白
                             } else {
                                 Text("バーコード未取得")
                                     .foregroundColor(.secondary)

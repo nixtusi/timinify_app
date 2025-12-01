@@ -91,6 +91,15 @@ class BarcodeManager {
         return UIImage(contentsOfFile: imageFilePath().path)
     }
     
+    //学籍番号からバーコード番号を取得するメソッド(外部公開用)
+    func getBarcodeNumber(for studentID: String) -> String? {
+        // 数字部分のみ抽出
+        let numericPart = studentID.filter { "0123456789".contains($0) }
+        guard numericPart.count == 7 else { return nil }
+        
+        return generateBarcodeNumber(from: numericPart)
+    }
+    
     private func imageFilePath() -> URL {
         let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.yuta.beefapp")!
         return container.appendingPathComponent(barcodeImageFileName)
