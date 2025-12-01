@@ -38,9 +38,32 @@ struct BeefTask: Identifiable, Codable {
         guard let date = formatter.date(from: deadline) else { return "" }
         
         let diff = date.timeIntervalSince(Date())
-        if diff <= 0 { return "締切済み" }
-        else if diff < 3600 { return "あと\(Int(diff/60))分" }
-        else if diff < 86400 { return "あと\(Int(diff/3600))時間" }
-        else { return "あと\(Int(diff/86400))日" }
+        
+        if diff <= 0 {
+            return "締切済み"
+        } else if diff < 3600 {
+            // 1時間未満: 分のみ (例: あと45分)
+            return "あと\(Int(diff / 60))分"
+        } else if diff < 3 * 3600 {
+            // 3時間未満: 時間+分 (例: あと2時間15分)
+            let hours = Int(diff / 3600)
+            let minutes = Int((diff.truncatingRemainder(dividingBy: 3600)) / 60)
+            return "あと\(hours)時間\(minutes)分"
+        } else if diff < 24 * 3600 {
+            // 3時間〜24時間: 時間のみ (例: あと5時間)
+            return "あと\(Int(diff / 3600))時間"
+        } else {
+            // 24時間以上
+            let days = Int(diff / 86400)
+            let hours = Int((diff.truncatingRemainder(dividingBy: 86400)) / 3600)
+            
+            if days < 3 {
+                // 3日以内: 日+時間 (例: あと1日15時間)
+                return "あと\(days)日\(hours)時間"
+            } else {
+                // 3日以上: 日のみ (例: あと5日)
+                return "あと\(days)日"
+            }
+        }
     }
 }

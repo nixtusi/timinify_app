@@ -11,92 +11,93 @@ struct TaskListView: View {
     @StateObject private var fetcher = TaskFetcher()
     @Environment(\.scenePhase) var scenePhase
 
+    // ✅ 緊急度に応じた色を判定する関数
+    private func urgencyColor(deadline: String) -> Color {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy/MM/dd HH:mm:ss"
+        formatter.timeZone = TimeZone(identifier: "Asia/Tokyo")
+        guard let date = formatter.date(from: deadline) else { return .green }
+        
+        let diff = date.timeIntervalSince(Date())
+        if diff < 24 * 60 * 60 { // 24時間以内 (または期限切れ)
+            return .red
+        } else if diff < 3 * 24 * 60 * 60 { // 3日以内
+            return .yellow
+        } else {
+            return .green // それ以上
+        }
+    }
+
     var body: some View {
         ZStack {
-            Color(.systemGray6)
+            // 背景色を少しグレーにしてカードを目立たせる
+            Color(.systemGroupedBackground)
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
                 ScrollView {
-                    VStack(spacing: 16) {
+                    LazyVStack(spacing: 16) { // LazyVStackで描画効率化
 
-                        // ✅ 変更: 0件時の空表示（infoMessage を優先）
-                        if fetcher.tasks.isEmpty {
-                            VStack(spacing: 8) {
-                                Text(fetcher.infoMessage ?? "未提出の課題・テスト一覧はありません。")
-                                    .font(.headline)
-                                    .foregroundColor(.secondary)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal, 16)
-                            }
-                            .padding(.top, 24)
-                        }
-
-                        ForEach(fetcher.tasks) { beefTask in
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(beefTask.course)
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-
-                                Text(beefTask.title)
-                                    .font(.headline)
-                                    .foregroundColor(.primary)
-
-                                HStack {
-                                    // 曜日付きの締切表示
-                                    Text("締切: \(beefTask.formattedDeadlineWithDay)")
-                                        .font(.footnote)
-                                        .fontWeight(.bold)
-                                    Spacer()
-                                    Text(beefTask.timeRemaining)
-                                        .font(.footnote)
-                                        .foregroundColor(.red)
+                        // ✅ 1. 最終更新時間を上に表示 (右寄せでスマートに)
+                        if !fetcher.tasks.isEmpty || fetcher.lastUpdated != nil || fetcher.isLoading {
+                            HStack {
+                                Spacer()
+                                if fetcher.isLoading {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                    Text("更新中...")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                } else if let updated = fetcher.lastUpdated {
+                                    Image(systemName: "arrow.clockwise")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                    
+                                    // 24時間以上前なら日付も出すなどの分岐はお好みで
+                                    if Date().timeIntervalSince(updated) > 24 * 60 * 60 {
+                                        Text("最終更新: 1日前")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    } else {
+                                        Text("最終更新: \(formattedDate(updated))")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
                                 }
                             }
-                            .padding()
-                            .background(Color(.systemBackground))
-                            .cornerRadius(12)
-                            .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
                             .padding(.horizontal)
+                            .padding(.top, 12)
+                        }
+
+                        // 0件時の空表示
+                        if fetcher.tasks.isEmpty {
+                            VStack(spacing: 12) {
+                                Image(systemName: "tray")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(.gray.opacity(0.5))
+                                Text(fetcher.infoMessage ?? "未提出の課題・テスト一覧はありません。")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 32)
+                            }
+                            .padding(.top, 60)
+                        }
+
+                        // 課題リスト
+                        ForEach(fetcher.tasks) { beefTask in
+                            TaskCardView(
+                                task: beefTask,
+                                color: urgencyColor(deadline: beefTask.deadline)
+                            )
                             .onTapGesture {
                                 if let url = URL(string: beefTask.url) {
                                     UIApplication.shared.open(url)
                                 }
                             }
                         }
-
-                        // ✅ 変更: 下部情報は infoMessage / lastUpdated / isLoading いずれかがあれば表示
-                        if !fetcher.tasks.isEmpty || fetcher.lastUpdated != nil || fetcher.isLoading || fetcher.infoMessage != nil {
-                            HStack(spacing: 8) {
-                                if let updated = fetcher.lastUpdated {
-                                    if Date().timeIntervalSince(updated) > 24*60*60 {
-                                        Text("最終更新 24時間以上前")
-                                    } else {
-                                        Text("最終更新 \(formattedDate(updated))")
-                                    }
-                                }
-                                if fetcher.isLoading {
-                                    Text("最新データ取得中…")
-                                }
-                            }
-                            .font(.footnote)
-                            .foregroundColor(.gray)
-                            .padding(.bottom, 12)
-                        }
-
-                        // ❌（削除方針）従来の赤字テキストによるエラー表示は不要に
-                        // ✅ 変更: アラートに一本化するためコメントアウト
-                        /*
-                        if let error = fetcher.errorMessage, !error.isEmpty {
-                            Text(error)
-                                .font(.footnote)
-                                .foregroundColor(.red)
-                                .padding(.horizontal)
-                                .padding(.bottom, 12)
-                        }
-                        */
                     }
-                    .padding(.top)
+                    .padding(.bottom, 20) // 下部の余白
                 }
                 .refreshable {
                     fetcher.fetchTasksFromAPI()
@@ -112,7 +113,6 @@ struct TaskListView: View {
                 WidgetCenter.shared.reloadAllTimelines()
             }
         }
-        // ✅ 変更: アラート追加（サーバー停止メッセージを優先表示）
         .alert(isPresented: $fetcher.showErrorAlert) {
             let title = fetcher.isServerDown ? "サーバー停止中" : "エラー"
             let message = fetcher.isServerDown
@@ -128,6 +128,65 @@ struct TaskListView: View {
     }
 }
 
+// ✅ デザインを整えたカードView（別構造体にしてスッキリさせる）
+struct TaskCardView: View {
+    let task: BeefTask
+    let color: Color
+    
+    var body: some View {
+        HStack(spacing: 0) {
+            // 左側のカラーバー
+            Rectangle()
+                .fill(color)
+                .frame(width: 5)
+            
+            VStack(alignment: .leading, spacing: 8) {
+                // コース名（少し小さく控えめに）
+                Text(task.course)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                
+                // タイトル（大きく目立たせる）
+                Text(task.title)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true) // 複数行になっても表示崩れを防ぐ
+                
+                Divider() // 区切り線を入れて情報を整理
+                
+                // 締切と残り時間
+                HStack {
+                    // 締切
+                    HStack(spacing: 4) {
+                        Image(systemName: "calendar")
+                        Text(task.formattedDeadlineWithDay)
+                    }
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    // 残り時間 (緊急度色を反映)
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
+                        Text(task.timeRemaining)
+                    }
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .foregroundColor(color) // 文字色もバーの色と合わせる
+                }
+            }
+            .padding(12) // カード内部の余白
+        }
+        .background(Color(.secondarySystemGroupedBackground)) // カード背景色
+        .cornerRadius(10) // 角丸
+        .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2) // 優しい影をつける
+        .padding(.horizontal) // 画面端からの余白
+    }
+}
 
 private func formattedDate(_ date: Date) -> String {
     let formatter = DateFormatter()
