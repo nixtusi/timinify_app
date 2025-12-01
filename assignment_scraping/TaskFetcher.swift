@@ -84,7 +84,7 @@ class TaskFetcher: ObservableObject {
                 if let se = error as? ScrapeError, se == .timeout {
                     self.errorMessage = "接続がタイムアウトしました。通信環境を確認してください。"
                 } else {
-                    self.errorMessage = "課題の取得に失敗しました。BEEF+のパスワードが変更されていないか確認してください。"
+                    self.errorMessage = "課題の取得に失敗しました。もう一度取得をやり直しても、できなければ管理者に連絡してください。"
                 }
                 self.showErrorAlert = true
             }

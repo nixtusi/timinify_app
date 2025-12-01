@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SyllabusDetailView: View {
     let syllabus: Syllabus
+    // ✅ 追加: 曜日と時限を受け取る
     let day: String
     let period: Int
 
@@ -142,7 +143,8 @@ struct SyllabusDetailView: View {
             .padding() // 全体の余白
         }
         .background(Color(.systemGroupedBackground)) // 全体の背景色
-        .navigationTitle("\(day)曜 \(period)限")
+        // ✅ 変更: 検索から("ー")の場合は「シラバス」、それ以外は「曜日 時限」を表示
+        .navigationTitle(day == "ー" ? "シラバス" : "\(day)曜 \(period)限")
         .navigationBarTitleDisplayMode(.inline)
     }
 

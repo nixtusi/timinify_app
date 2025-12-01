@@ -15,9 +15,6 @@ struct SearchView: View {
     @State private var searchResultsClasses: [ClassSearchResult] = []
     @State private var isSearching = false
     
-    // 選択された授業（シート表示用）
-    @State private var selectedClass: ClassSearchResult?
-    
     private let provider = SearchDataProvider.shared
     
     // ローカルフィルタリング（アカウント・地図）
@@ -63,7 +60,7 @@ struct SearchView: View {
                         }
                     }
                     
-                    // 授業セクション
+                    // 授業セクション（Firestore検索結果）
                     if shouldShow(.class) {
                         Section(header: Text("授業")) {
                             if isSearching {
@@ -80,10 +77,12 @@ struct SearchView: View {
                                     .foregroundColor(.secondary)
                             } else {
                                 ForEach(searchResultsClasses) { item in
-                                    // 1段階目: タップしてシートを表示
-                                    Button {
-                                        selectedClass = item
-                                    } label: {
+                                    // ✅ 修正: シートを経由せず直接画面遷移
+                                    NavigationLink(destination: SyllabusDetailView(
+                                        syllabus: item.toSyllabus,
+                                        day: "ー", // 検索からの場合は「ー」を渡してタイトルを「シラバス」にする
+                                        period: 0
+                                    )) {
                                         HStack(spacing: 12) {
                                             Image(systemName: "book.closed.circle.fill")
                                                 .resizable()
@@ -124,9 +123,15 @@ struct SearchView: View {
                                             .frame(width: 40, height: 40)
                                             .foregroundColor(.green)
                                         
-                                        Text(location.name)
-                                            .font(.body)
-                                            .lineLimit(1)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(location.name)
+                                                .font(.body)
+                                                .lineLimit(1)
+                                            
+                                            Text(location.campus)
+                                                .font(.caption)
+                                                .foregroundColor(.gray)
+                                        }
                                     }
                                     .padding(.vertical, 4)
                                 }
@@ -142,59 +147,6 @@ struct SearchView: View {
             .onChange(of: searchText) { _, newValue in
                 Task {
                     await performSearch(query: newValue)
-                }
-            }
-            // 2段階目: シート表示
-            .sheet(item: $selectedClass) { item in
-                NavigationStack {
-                    VStack(spacing: 24) {
-                        Spacer()
-                        
-                        Image(systemName: "graduationcap.circle.fill")
-                            .font(.system(size: 80))
-                            .foregroundColor(.blue)
-                        
-                        VStack(spacing: 12) {
-                            Text(item.title)
-                                .font(.title2)
-                                .bold()
-                                .multilineTextAlignment(.center)
-                            
-                            Text(item.teacher)
-                                .font(.headline)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding()
-                        
-                        // 3段階目: シラバス詳細へ遷移
-                        // sheet内で遷移するにはNavigationStackが必要
-                        NavigationLink(destination: SyllabusDetailView(
-                            syllabus: item.toSyllabus,
-                            day: "ー", // 検索結果には曜日情報が含まれない場合があるためプレースホルダー
-                            period: 0
-                        )) {
-                            Text("シラバスを表示")
-                                .bold()
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 50)
-                                .background(Color.blue)
-                                .foregroundColor(.white)
-                                .cornerRadius(10)
-                        }
-                        .padding(.horizontal, 40)
-                        
-                        Spacer()
-                    }
-                    .padding()
-                    .presentationDetents([.medium]) // ハーフモーダル
-                    // シート内の閉じるボタンなど
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button("閉じる") {
-                                selectedClass = nil
-                            }
-                        }
-                    }
                 }
             }
         }
