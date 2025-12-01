@@ -20,7 +20,7 @@ struct SplashView: View {
                 if appState.isLoggedIn {
                     MainTabView()
                 } else {
-                    InitialSetupView {
+                    AuthView {
                         appState.isLoggedIn = true
                     }
                 }
