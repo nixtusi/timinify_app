@@ -20,17 +20,6 @@ struct BeefTaskApp: App {
     init() {
         //通知許可
         NotificationManager.shared.requestAuthorization()
-
-        //💩BGTask登録(後ほどコメントアウトを外す)
-//        BGTaskScheduler.shared.register(
-//            forTaskWithIdentifier: "com.yuta.beefapp.refresh",
-//            using: nil
-//        ) { task in
-//            BeefTaskApp.handleAppRefresh(task: task as! BGAppRefreshTask)
-//        }
-
-        // 💩スケジュール登録(後ほどコメントアウトを外す)
-        //BeefTaskApp.scheduleAppRefresh()
     }
 
     var body: some Scene {
@@ -82,19 +71,6 @@ struct BeefTaskApp: App {
             //scheduleAppRefresh() //💩(後ほどコメントアウトを外す)
         }
     }
-
-    // 💩BGTaskスケジュール登録(後ほどコメントアウトを外す)
-//    static func scheduleAppRefresh() {
-//        let request = BGAppRefreshTaskRequest(identifier: "com.yuta.beefapp.refresh")
-//        request.earliestBeginDate = Date(timeIntervalSinceNow: 600)
-//
-//        do {
-//            try BGTaskScheduler.shared.submit(request)
-//            print("✅ BGTask: スケジュール登録完了")
-//        } catch {
-//            print("❌ BGTask: スケジュール登録失敗 - \(error)")
-//        }
-//    }
 
     //課題情報を取得してWidgetに保存
     static func fetchAndStoreAssignments() async {
