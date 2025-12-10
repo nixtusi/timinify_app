@@ -50,40 +50,6 @@ struct SettingsView: View {
                 .ignoresSafeArea()
 
             Form {
-                Section(header: Text("アカウント")) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(studentNumber)
-                            .font(.body)
-                            .foregroundColor(.primary)
-
-                        // 変更: 確認状態の表示
-                        HStack {
-                            Label(isVerified ? "メール確認済み" : "メール未確認", systemImage: isVerified ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                                .foregroundColor(isVerified ? .green : .orange)
-                                .font(.subheadline)
-
-                            Spacer()
-
-                            // 変更: 未確認の場合のみ「確認メール再送」
-                            if !isVerified {
-                                Button {
-                                    resendVerificationEmail()
-                                } label: {
-                                    Text(verifyResendRemaining > 0 ? "再送 (\(verifyResendRemaining)s)" : "確認メールを再送")
-                                        .font(.footnote.weight(.semibold))
-                                }
-                                .disabled(verifyResendRemaining > 0)
-                            }
-                        }
-
-                        if !isVerified {
-                            Text("※ 受信トレイ／迷惑メールをご確認ください。リンクは一定時間で失効します。")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-
                 Section(header: Text("図書館入館証")) {
                     ZStack {
                         Color.white // ダークモード時でも白背景に固定
@@ -124,6 +90,40 @@ struct SettingsView: View {
                         }
                     }
                     .listRowInsets(EdgeInsets()) // セクション外の余白を詰める
+                }
+                
+                Section(header: Text("アカウント")) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(studentNumber)
+                            .font(.body)
+                            .foregroundColor(.primary)
+
+                        // 変更: 確認状態の表示
+                        HStack {
+                            Label(isVerified ? "メール確認済み" : "メール未確認", systemImage: isVerified ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                                .foregroundColor(isVerified ? .green : .orange)
+                                .font(.subheadline)
+
+                            Spacer()
+
+                            // 変更: 未確認の場合のみ「確認メール再送」
+                            if !isVerified {
+                                Button {
+                                    resendVerificationEmail()
+                                } label: {
+                                    Text(verifyResendRemaining > 0 ? "再送 (\(verifyResendRemaining)s)" : "確認メールを再送")
+                                        .font(.footnote.weight(.semibold))
+                                }
+                                .disabled(verifyResendRemaining > 0)
+                            }
+                        }
+
+                        if !isVerified {
+                            Text("※ 受信トレイ／迷惑メールをご確認ください。リンクは一定時間で失効します。")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
 
                 Section(header: Text("その他")) {
