@@ -38,10 +38,36 @@ struct TaskListView: View {
                 ScrollView {
                     LazyVStack(spacing: 16) { // LazyVStackで描画効率化
 
-                        // ✅ 1. 最終更新時間を上に表示 (右寄せでスマートに)
-                        if !fetcher.tasks.isEmpty || fetcher.lastUpdated != nil || fetcher.isLoading {
+                        // ✅ 1. 更新ボタン・残り回数・最終更新時間のヘッダー
+                        VStack(alignment: .leading, spacing: 8) {
                             HStack {
+                                // 手動更新ボタン
+                                Button {
+                                    fetcher.fetchTasksFromAPI()
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "arrow.clockwise")
+                                            .font(.caption2)
+                                        Text("更新")
+                                            .font(.caption)
+                                    }
+                                    .padding(.vertical, 6)
+                                    .padding(.horizontal, 10)
+                                    // 制限に達しているかロード中はグレーアウト
+                                    .background(fetcher.isLoading || fetcher.fetchLimitReached ? Color(.systemGray5) : Color.accentColor.opacity(0.1))
+                                    .foregroundColor(fetcher.isLoading || fetcher.fetchLimitReached ? .secondary : Color.accentColor)
+                                    .cornerRadius(8)
+                                }
+                                .disabled(fetcher.isLoading || fetcher.fetchLimitReached)
+                                
+                                // ✅ 残り回数表示
+                                Text("残り \(fetcher.remainingFetches)/\(TaskFetcher.maxFetches)回")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                
                                 Spacer()
+                                
+                                // 最終更新時間
                                 if fetcher.isLoading {
                                     ProgressView()
                                         .scaleEffect(0.8)
@@ -49,25 +75,29 @@ struct TaskListView: View {
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 } else if let updated = fetcher.lastUpdated {
-                                    Image(systemName: "arrow.clockwise")
+                                    Image(systemName: "clock")
                                         .font(.caption2)
                                         .foregroundColor(.secondary)
                                     
-                                    // 24時間以上前なら日付も出すなどの分岐はお好みで
                                     if Date().timeIntervalSince(updated) > 24 * 60 * 60 {
-                                        Text("最終更新: 1日前")
+                                        Text("1日前")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                     } else {
-                                        Text("最終更新: \(formattedDate(updated))")
+                                        Text(formattedDate(updated))
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                     }
                                 }
                             }
-                            .padding(.horizontal)
-                            .padding(.top, 12)
+                            
+                            // ✅ 自動更新停止の注意書き
+                            Text("※自動更新は行われません。ボタンを押して更新してください。")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
                         }
+                        .padding(.horizontal)
+                        .padding(.top, 12)
 
                         // 0件時の空表示
                         if fetcher.tasks.isEmpty {
@@ -105,11 +135,14 @@ struct TaskListView: View {
             }
         }
         .onAppear {
-            fetcher.fetchTasksFromAPI()
+            // fetcher.fetchTasksFromAPI() // ✅ コメントアウト: 自動取得停止
+            fetcher.loadSavedTasks() // 保存データのロードのみ
+            fetcher.checkDailyLimit() // 回数制限のチェック
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
-                fetcher.fetchTasksFromAPI()
+                // fetcher.fetchTasksFromAPI() // ✅ コメントアウト: 自動取得停止
+                fetcher.checkDailyLimit() // 日付変更チェック
                 WidgetCenter.shared.reloadAllTimelines()
             }
         }

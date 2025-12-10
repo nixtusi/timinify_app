@@ -20,6 +20,11 @@ class TaskFetcher: ObservableObject {
     @Published var infoMessage: String? = nil
     @Published var showErrorAlert: Bool = false
     @Published var isServerDown: Bool = false
+    
+    // ✅ 新規: 制限に達したかどうかのフラグ
+    @Published var fetchLimitReached: Bool = false
+    // ✅ 新規: 現在の取得回数（表示用）
+    @Published var currentDailyFetchCount: Int = 0
 
     private enum Keys {
         static let storageKey = "savedTasks"
@@ -27,11 +32,27 @@ class TaskFetcher: ObservableObject {
         static let appGroupSuite = "group.com.yuta.beefapp"
         static let widgetTasksKey = "widgetTasks"
         static let widgetLastUpdatedKey = "widgetLastUpdated"
+        // ✅ 新規: 回数制限用のキーと定数
+        static let dailyFetchCountKey = "dailyFetchCount"
+        static let lastFetchDateKey = "lastFetchDate"
+        static let maxDailyFetches = 10
+        
+        
+    }
+    
+    // ✅ 新規: Viewからアクセスするための最大回数定数
+    static let maxFetches = Keys.maxDailyFetches
+    
+    // ✅ 新規: 残り回数を計算するプロパティ
+    var remainingFetches: Int {
+        return max(0, Keys.maxDailyFetches - currentDailyFetchCount)
     }
 
     init() {
         loadSavedTasks()
         self.lastUpdated = UserDefaults.standard.object(forKey: Keys.lastUpdatedKey) as? Date
+        // 起動時に制限状態をチェック
+        checkDailyLimit()
     }
 
     func loadSavedTasks() {
@@ -40,9 +61,80 @@ class TaskFetcher: ObservableObject {
             self.tasks = decoded
         }
     }
+    
+    // ✅ 新規: 日付を確認してカウントをリセット・更新するメソッド
+    func checkDailyLimit() {
+        let defaults = UserDefaults.standard
+        let today = Calendar.current.startOfDay(for: Date())
+        
+        let lastDate = defaults.object(forKey: Keys.lastFetchDateKey) as? Date
+        var currentCount = defaults.integer(forKey: Keys.dailyFetchCountKey)
+        
+        if let lastDate = lastDate, Calendar.current.isDate(lastDate, inSameDayAs: today) {
+            // 同日なら何もしない
+        } else {
+            // 日付が変わっていればリセット
+            currentCount = 0
+            defaults.set(today, forKey: Keys.lastFetchDateKey)
+            defaults.set(currentCount, forKey: Keys.dailyFetchCountKey)
+        }
+        
+        self.currentDailyFetchCount = currentCount
+        self.fetchLimitReached = currentCount >= Keys.maxDailyFetches
+    }
+    
+    // ✅ 新規: カウントアップ処理
+    private func incrementDailyFetchCount() {
+        let defaults = UserDefaults.standard
+        let today = Calendar.current.startOfDay(for: Date())
+        
+        var currentCount = defaults.integer(forKey: Keys.dailyFetchCountKey)
+        currentCount += 1
+        
+        defaults.set(currentCount, forKey: Keys.dailyFetchCountKey)
+        defaults.set(today, forKey: Keys.lastFetchDateKey)
+        
+        self.currentDailyFetchCount = currentCount
+        self.fetchLimitReached = currentCount >= Keys.maxDailyFetches
+        
+        print("💡 本日の課題取得回数: \(currentCount)/\(Keys.maxDailyFetches)")
+    }
+    
+    // ✅ 新規: カウントダウン処理（エラー時などのロールバック用）
+    private func decrementDailyFetchCount() {
+        let defaults = UserDefaults.standard
+        var currentCount = defaults.integer(forKey: Keys.dailyFetchCountKey)
+        currentCount = max(0, currentCount - 1)
+        
+        defaults.set(currentCount, forKey: Keys.dailyFetchCountKey)
+        self.currentDailyFetchCount = currentCount
+        self.fetchLimitReached = currentCount >= Keys.maxDailyFetches
+    }
 
     // APIではなくScraperを使用
+    // ✅ 変更: リトライ回数引数を追加し、制限チェックとリトライ処理を実装
     func fetchTasksFromAPI(retries: Int = 5) {
+        
+        // 初回呼び出し時（リトライではない時）に制限チェックとカウントアップを行う
+        if retries == 5 {
+            checkDailyLimit()
+            
+            guard !fetchLimitReached else {
+                self.isLoading = false
+                self.errorMessage = "本日の課題取得回数（\(Keys.maxDailyFetches)回）の上限に達しました。明日改めてお試しください。"
+                self.showErrorAlert = true
+                return
+            }
+            
+            // 実行前にカウントアップ（連打防止・実行済みとして扱う）
+            incrementDailyFetchCount()
+            
+            isLoading = true
+            errorMessage = nil
+            infoMessage = nil
+            isServerDown = false
+        }
+        
         loadSavedTasks()
 
         let studentNumber = Auth.auth().currentUser?.email?.components(separatedBy: "@").first ??
@@ -50,15 +142,14 @@ class TaskFetcher: ObservableObject {
         let password = UserDefaults.standard.string(forKey: "loginPassword") ?? ""
 
         guard !studentNumber.isEmpty, !password.isEmpty else {
+            // ログイン情報なしエラーの場合はカウントを戻す
+            if retries == 5 { decrementDailyFetchCount() }
+            
+            self.isLoading = false
             self.errorMessage = "ログイン情報が未設定です。設定画面から学籍番号・パスワードを登録してください。"
             self.showErrorAlert = true
             return
         }
-
-        isLoading = true
-        errorMessage = nil
-        infoMessage = nil
-        isServerDown = false
 
         // スクレイピング実行
         AssignmentScraper.shared.fetchAssignments(studentID: studentNumber, password: password) { [weak self] result in
@@ -66,7 +157,6 @@ class TaskFetcher: ObservableObject {
             
             switch result {
             case .success(let fetchedTasks):
-                // 成功時はリトライせずに終了
                 self.success = true
                 self.tasks = fetchedTasks
                 self.saveTasksToLocal(fetchedTasks)
@@ -77,23 +167,24 @@ class TaskFetcher: ObservableObject {
                 }
                 self.updateLastUpdated()
                 print("✅ 課題取得成功（スクレイピング）: \(fetchedTasks.count)件")
-                self.isLoading = false // 成功時にisLoadingを解除
+                
+                self.isLoading = false // 完了
                 
             case .failure(let error):
                 // 失敗時
                 if retries > 1 {
-                    // リトライ可能: 2秒待機してから再試行
+                    // リトライ可能なら2秒後に再試行
                     print("⚠️ 課題取得失敗。残り\(retries - 1)回リトライします。")
                     Task { @MainActor in
-                        try await Task.sleep(nanoseconds: 2_000_000_000) // 2秒待機
+                        try? await Task.sleep(nanoseconds: 2_000_000_000) // 2秒待機
                         self.fetchTasksFromAPI(retries: retries - 1)
                     }
                 } else {
-                    // 最終リトライ失敗: アラートを表示して終了
-                    self.isLoading = false
+                    // リトライ上限
                     self.success = false
-                    print("❌ 課題取得失敗: \(error) - リトライ上限に達しました。")
-
+                    self.isLoading = false
+                    print("❌ 課題取得失敗: \(error)")
+                    
                     if let se = error as? ScrapeError, se == .timeout {
                         self.errorMessage = "接続がタイムアウトしました。通信環境を確認してください。"
                     } else {
