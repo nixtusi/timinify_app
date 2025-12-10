@@ -13,7 +13,7 @@ import FirebaseFirestore
 enum SearchScope: String, CaseIterable, Identifiable {
     case all = "すべて"
     case `class` = "授業"
-    case account = "アカウント"
+    //case account = "アカウント"
     case map = "地図"
     case circle = "サークル"
     

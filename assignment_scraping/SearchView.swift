@@ -49,22 +49,22 @@ struct SearchView: View {
                 
                 List {
                     // アカウントセクション
-                    if shouldShow(.account) && !filteredUsers.isEmpty {
-                        Section(header: Text("アカウント")) {
-                            ForEach(filteredUsers) { user in
-                                HStack(spacing: 12) {
-                                    Image(systemName: user.iconName)
-                                        .resizable()
-                                        .scaledToFit()
-                                        .frame(width: 40, height: 40)
-                                        .foregroundColor(.gray)
-                                    Text(user.name)
-                                        .font(.body)
-                                }
-                                .padding(.vertical, 4)
-                            }
-                        }
-                    }
+//                    if shouldShow(.account) && !filteredUsers.isEmpty {
+//                        Section(header: Text("アカウント")) {
+//                            ForEach(filteredUsers) { user in
+//                                HStack(spacing: 12) {
+//                                    Image(systemName: user.iconName)
+//                                        .resizable()
+//                                        .scaledToFit()
+//                                        .frame(width: 40, height: 40)
+//                                        .foregroundColor(.gray)
+//                                    Text(user.name)
+//                                        .font(.body)
+//                                }
+//                                .padding(.vertical, 4)
+//                            }
+//                        }
+//                    }
                     
                     // 授業セクション（Firestore検索結果）
                     if shouldShow(.class) {
