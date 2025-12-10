@@ -60,8 +60,8 @@ struct TaskListView: View {
                                 }
                                 .disabled(fetcher.isLoading || fetcher.fetchLimitReached)
                                 
-                                // ✅ 残り回数表示
-                                Text("残り \(fetcher.remainingFetches)/\(TaskFetcher.maxFetches)回")
+                                // ✅ 変更: インスタンスプロパティの maxDailyFetches を使用
+                                Text("残り \(fetcher.remainingFetches)/\(fetcher.maxDailyFetches)回")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                 
@@ -75,8 +75,12 @@ struct TaskListView: View {
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 } else if let updated = fetcher.lastUpdated {
-                                    Image(systemName: "clock")
-                                        .font(.caption2)
+//                                    Image(systemName: "clock")
+//                                        .font(.caption2)
+//                                        .foregroundColor(.secondary)
+                                    
+                                    Text("最終更新:")
+                                        .font(.caption)
                                         .foregroundColor(.secondary)
                                     
                                     if Date().timeIntervalSince(updated) > 24 * 60 * 60 {

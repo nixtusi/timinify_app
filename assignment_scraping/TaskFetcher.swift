@@ -21,10 +21,13 @@ class TaskFetcher: ObservableObject {
     @Published var showErrorAlert: Bool = false
     @Published var isServerDown: Bool = false
     
-    // ✅ 新規: 制限に達したかどうかのフラグ
+    // 制限に達したかどうかのフラグ
     @Published var fetchLimitReached: Bool = false
-    // ✅ 新規: 現在の取得回数（表示用）
+    // 現在の取得回数（表示用）
     @Published var currentDailyFetchCount: Int = 0
+
+    // ✅ 新規: 上限を50回にしたい学籍番号のリスト（適宜書き換えてください）
+    private let specialStudentNumbers: Set<String> = ["2435109t","2415024t","2455092t","2425023t"]
 
     private enum Keys {
         static let storageKey = "savedTasks"
@@ -32,20 +35,31 @@ class TaskFetcher: ObservableObject {
         static let appGroupSuite = "group.com.yuta.beefapp"
         static let widgetTasksKey = "widgetTasks"
         static let widgetLastUpdatedKey = "widgetLastUpdated"
-        // ✅ 新規: 回数制限用のキーと定数
+        // 回数制限用のキー
         static let dailyFetchCountKey = "dailyFetchCount"
         static let lastFetchDateKey = "lastFetchDate"
-        static let maxDailyFetches = 10
-        
-        
     }
     
-    // ✅ 新規: Viewからアクセスするための最大回数定数
-    static let maxFetches = Keys.maxDailyFetches
+    // ✅ 新規: 現在の学籍番号を取得するヘルパー
+    private var currentStudentNumber: String {
+        if let email = Auth.auth().currentUser?.email {
+            return email.components(separatedBy: "@").first ?? ""
+        }
+        return UserDefaults.standard.string(forKey: "studentNumber") ?? ""
+    }
+
+    // ✅ 新規: 学籍番号に応じて最大回数を返すプロパティ
+    var maxDailyFetches: Int {
+        if specialStudentNumbers.contains(currentStudentNumber) {
+            return 50 // 特定の人は50回
+        } else {
+            return 10 // 通常は10回
+        }
+    }
     
-    // ✅ 新規: 残り回数を計算するプロパティ
+    // 残り回数を計算するプロパティ
     var remainingFetches: Int {
-        return max(0, Keys.maxDailyFetches - currentDailyFetchCount)
+        return max(0, self.maxDailyFetches - currentDailyFetchCount) // ✅ 変更: self.maxDailyFetchesを使用
     }
 
     init() {
@@ -62,7 +76,7 @@ class TaskFetcher: ObservableObject {
         }
     }
     
-    // ✅ 新規: 日付を確認してカウントをリセット・更新するメソッド
+    // 日付を確認してカウントをリセット・更新するメソッド
     func checkDailyLimit() {
         let defaults = UserDefaults.standard
         let today = Calendar.current.startOfDay(for: Date())
@@ -80,10 +94,10 @@ class TaskFetcher: ObservableObject {
         }
         
         self.currentDailyFetchCount = currentCount
-        self.fetchLimitReached = currentCount >= Keys.maxDailyFetches
+        self.fetchLimitReached = currentCount >= self.maxDailyFetches // ✅ 変更
     }
     
-    // ✅ 新規: カウントアップ処理
+    // カウントアップ処理
     private func incrementDailyFetchCount() {
         let defaults = UserDefaults.standard
         let today = Calendar.current.startOfDay(for: Date())
@@ -95,12 +109,12 @@ class TaskFetcher: ObservableObject {
         defaults.set(today, forKey: Keys.lastFetchDateKey)
         
         self.currentDailyFetchCount = currentCount
-        self.fetchLimitReached = currentCount >= Keys.maxDailyFetches
+        self.fetchLimitReached = currentCount >= self.maxDailyFetches // ✅ 変更
         
-        print("💡 本日の課題取得回数: \(currentCount)/\(Keys.maxDailyFetches)")
+        print("💡 本日の課題取得回数: \(currentCount)/\(self.maxDailyFetches)")
     }
     
-    // ✅ 新規: カウントダウン処理（エラー時などのロールバック用）
+    // カウントダウン処理（エラー時などのロールバック用）
     private func decrementDailyFetchCount() {
         let defaults = UserDefaults.standard
         var currentCount = defaults.integer(forKey: Keys.dailyFetchCountKey)
@@ -108,11 +122,10 @@ class TaskFetcher: ObservableObject {
         
         defaults.set(currentCount, forKey: Keys.dailyFetchCountKey)
         self.currentDailyFetchCount = currentCount
-        self.fetchLimitReached = currentCount >= Keys.maxDailyFetches
+        self.fetchLimitReached = currentCount >= self.maxDailyFetches // ✅ 変更
     }
 
     // APIではなくScraperを使用
-    // ✅ 変更: リトライ回数引数を追加し、制限チェックとリトライ処理を実装
     func fetchTasksFromAPI(retries: Int = 5) {
         
         // 初回呼び出し時（リトライではない時）に制限チェックとカウントアップを行う
@@ -121,7 +134,8 @@ class TaskFetcher: ObservableObject {
             
             guard !fetchLimitReached else {
                 self.isLoading = false
-                self.errorMessage = "本日の課題取得回数（\(Keys.maxDailyFetches)回）の上限に達しました。明日改めてお試しください。"
+                // ✅ 変更: メッセージ内の回数も動的に
+                self.errorMessage = "本日の課題取得回数（\(self.maxDailyFetches)回）の上限に達しました。明日改めてお試しください。"
                 self.showErrorAlert = true
                 return
             }
@@ -137,8 +151,7 @@ class TaskFetcher: ObservableObject {
         
         loadSavedTasks()
 
-        let studentNumber = Auth.auth().currentUser?.email?.components(separatedBy: "@").first ??
-            UserDefaults.standard.string(forKey: "studentNumber") ?? ""
+        let studentNumber = currentStudentNumber // ヘルパーを利用
         let password = UserDefaults.standard.string(forKey: "loginPassword") ?? ""
 
         guard !studentNumber.isEmpty, !password.isEmpty else {
@@ -196,6 +209,7 @@ class TaskFetcher: ObservableObject {
         }
     }
 
+    // ... (残りのメソッドは変更なし)
     private func updateLastUpdated() {
         let now = Date()
         self.lastUpdated = now
