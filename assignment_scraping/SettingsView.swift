@@ -362,10 +362,22 @@ struct SettingsView: View {
     private func loadSavedBarcodeImage() {
         isFetchingBarcode = true
         DispatchQueue.global().async {
-            let image = BarcodeManager.shared.loadSavedBarcodeImage()
-            DispatchQueue.main.async {
-                self.barcodeImage = image
-                self.isFetchingBarcode = false
+            // 1. まずローカルに保存された画像があるか確認
+            if let savedImage = BarcodeManager.shared.loadSavedBarcodeImage() {
+                // あればそれを表示
+                DispatchQueue.main.async {
+                    self.barcodeImage = savedImage
+                    self.isFetchingBarcode = false
+                }
+            } else {
+                // 2. なければ自動で生成・取得を実行
+                print("バーコード未保存のため、自動生成を開始します")
+                BarcodeManager.shared.fetchAndSaveBarcode { image in
+                    DispatchQueue.main.async {
+                        self.barcodeImage = image
+                        self.isFetchingBarcode = false
+                    }
+                }
             }
         }
     }

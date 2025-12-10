@@ -109,9 +109,7 @@ struct DataUpdateView: View {
                         .bold()
 
                     Text("""
-この処理では以下のデータを取得します：
-・時間割情報(今年度分のみ)
-・図書館入館証（バーコード）
+この処理では時間割情報(今年度分のみ)のデータを取得します：
 
 ※この処理には約2分程度かかります。
 ※更新中は他の画面に移動しないようにしてください。
@@ -150,16 +148,6 @@ struct DataUpdateView: View {
                             .foregroundColor(.red)
                             .font(.headline)
                     } else {
-//                        Button(action: startUpdate) {
-//                            Text("更新を開始する")
-//                                .bold()
-//                                .frame(maxWidth: .infinity)
-//                                .padding()
-//                                .background(Color(hex: "#4B3F96"))
-//                                .foregroundColor(.white)
-//                                .cornerRadius(10)
-//                        }
-                        
                         Button {
                             startUpdate()
                         } label: {
@@ -215,9 +203,9 @@ struct DataUpdateView: View {
 
                 try Task.checkCancellation() // ✅ 途中でキャンセルされたらここで throw
 
-                try await fetchAndUpdateBarcodeCancellable()
+                //try await fetchAndUpdateBarcodeCancellable()
                 
-                try Task.checkCancellation()
+                //try Task.checkCancellation()
                                 
                 // ✅ 3. サークル情報の取得・保存 (追加)
                 try await ClubDataManager.shared.fetchAndSaveClubs()
@@ -257,32 +245,32 @@ struct DataUpdateView: View {
         if !updateCompleted { errorMessage = "ユーザーがキャンセルしました" }
     }
 
-    // MARK: - バーコードのキャンセル協調版
-    private func fetchAndUpdateBarcodeCancellable() async throws {
-        try Task.checkCancellation()
-        isFetchingBarcode = true
-        defer { isFetchingBarcode = false }
-
-        // ✅ 1) 継続の型を明示（CheckedContinuation<Void, Error>）
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            BarcodeManager.shared.fetchAndSaveBarcode { image in
-                if Task.isCancelled {
-                    continuation.resume(throwing: CancellationError())
-                    return
-                }
-                if image != nil {
-                    print("✅ バーコード取得・保存成功（DataUpdateView）")
-                    continuation.resume(returning: ())   // ✅ 2) Void を返す
-                } else {
-                    continuation.resume(
-                        throwing: NSError(
-                            domain: "Barcode",
-                            code: -1,
-                            userInfo: [NSLocalizedDescriptionKey: "バーコードの取得に失敗しました"]
-                        )
-                    )
-                }
-            }
-        }
-    }
+//    // MARK: - バーコードのキャンセル協調版
+//    private func fetchAndUpdateBarcodeCancellable() async throws {
+//        try Task.checkCancellation()
+//        isFetchingBarcode = true
+//        defer { isFetchingBarcode = false }
+//
+//        // ✅ 1) 継続の型を明示（CheckedContinuation<Void, Error>）
+//        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+//            BarcodeManager.shared.fetchAndSaveBarcode { image in
+//                if Task.isCancelled {
+//                    continuation.resume(throwing: CancellationError())
+//                    return
+//                }
+//                if image != nil {
+//                    print("✅ バーコード取得・保存成功（DataUpdateView）")
+//                    continuation.resume(returning: ())   // ✅ 2) Void を返す
+//                } else {
+//                    continuation.resume(
+//                        throwing: NSError(
+//                            domain: "Barcode",
+//                            code: -1,
+//                            userInfo: [NSLocalizedDescriptionKey: "バーコードの取得に失敗しました"]
+//                        )
+//                    )
+//                }
+//            }
+//        }
+//    }
 }

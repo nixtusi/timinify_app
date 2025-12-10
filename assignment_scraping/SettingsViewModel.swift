@@ -8,35 +8,37 @@
 import SwiftUI
 
 class SettingsViewModel: ObservableObject {
-    // ユーザー設定として保存される値
-    @AppStorage("studentID") var studentID: String = "" // 学籍番号
-    @AppStorage("libraryBarcode") var libraryBarcode: String = "" // 図書館バーコード番号
+    // デバイス内に永続保存されるデータ
+    @AppStorage("studentID") var studentID: String = ""         // 学籍番号
+    @AppStorage("libraryBarcode") var libraryBarcode: String = "" // バーコード番号
     
-    // データ更新処理（ここからはバーコード生成を削除する）
-    func updateData() {
-        // 課題のスクレイピングなどの処理のみを行う
-        print("データを更新しました")
-    }
-    
-    // 【新規作成】設定画面が開かれたときに呼ぶ関数
-    func initializeLibraryBarcode() {
-        // 1. 学籍番号が設定されているか確認
+    // MARK: - 1. 設定画面が開いたときに呼ばれる処理
+    func checkAndGenerateBarcode() {
+        // 学籍番号が空なら何もしない
         guard !studentID.isEmpty else { return }
         
-        // 2. すでにバーコードが生成済みなら何もしない（ここが重要）
+        // すでにバーコードがあるなら何もしない（ここが重要）
         if !libraryBarcode.isEmpty {
             return
         }
         
-        // 3. まだ生成されていない場合のみ生成ロジックを実行
-        print("バーコードを初回生成します")
-        libraryBarcode = generateBarcodeFromID(studentID)
+        // バーコードがない場合のみ生成して保存
+        print("バーコードがないため、自動生成します")
+        libraryBarcode = generateBarcode(from: studentID)
     }
     
-    // バーコード生成の計算ロジック（以前のアルゴリズム）
-    private func generateBarcodeFromID(_ id: String) -> String {
-        // ここに以前作成した変換アルゴリズムを入れる
-        // 例: 学籍番号 "2435109t" -> 図書館番号
-        return "変換後の番号"
+    // MARK: - 2. データ更新ボタンが押されたときの処理
+    func updateTimeTableData() {
+        // ★ここからはバーコード生成処理を削除し、時間割の更新だけを行う
+        print("時間割データのスクレイピング・更新を開始します...")
+        
+        // ここに既存のスクレイピングやAPI通信のコードを書く
+    }
+    
+    // MARK: - 内部処理: バーコード計算ロジック
+    private func generateBarcode(from id: String) -> String {
+        // ★ここに、以前作成した「学籍番号からバーコードを作る計算式」を入れてください
+        // 例: "2435109t" -> 図書館用の番号
+        return "生成された番号" // 仮の戻り値
     }
 }
