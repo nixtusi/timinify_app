@@ -216,6 +216,11 @@ struct DataUpdateView: View {
                 try Task.checkCancellation() // ✅ 途中でキャンセルされたらここで throw
 
                 try await fetchAndUpdateBarcodeCancellable()
+                
+                try Task.checkCancellation()
+                                
+                // ✅ 3. サークル情報の取得・保存 (追加)
+                try await ClubDataManager.shared.fetchAndSaveClubs()
 
                 await MainActor.run {
                     isUpdating = false

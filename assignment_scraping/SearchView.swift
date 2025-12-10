@@ -10,6 +10,7 @@ import SwiftUI
 struct SearchView: View {
     @State private var searchText = ""
     @State private var selectedScope: SearchScope = .all
+    @StateObject private var clubManager = ClubDataManager.shared // ✅ サークル検索用
     
     // 検索結果の状態管理
     @State private var searchResultsClasses: [ClassSearchResult] = []
@@ -26,6 +27,11 @@ struct SearchView: View {
     private var filteredMaps: [MapLocation] {
         if searchText.isEmpty { return provider.locations }
         return provider.locations.filter { $0.name.contains(searchText) }
+    }
+    
+    // ✅ サークルのフィルタリング
+    private var filteredClubs: [Club] {
+        clubManager.searchClubs(text: searchText)
     }
     
     var body: some View {
@@ -111,6 +117,8 @@ struct SearchView: View {
                         }
                     }
                     
+                    
+                    
                     // 地図セクション
                     if shouldShow(.map) && !filteredMaps.isEmpty {
                         Section(header: Text("地図")) {
@@ -138,6 +146,65 @@ struct SearchView: View {
                             }
                         }
                     }
+                    
+                    // ✅ サークルセクション
+                    if shouldShow(.circle) && !filteredClubs.isEmpty {
+                        Section(header: Text("サークル")) {
+                            ForEach(filteredClubs) { club in
+                                NavigationLink(destination: ClubDetailView(club: club)) {
+                                    HStack(spacing: 12) {
+                                        // サムネ画像
+                                        if let url = URL(string: club.imgURL), !club.imgURL.isEmpty {
+                                            AsyncImage(url: url) { image in
+                                                image
+                                                    .resizable()
+                                                    .scaledToFill()
+                                            } placeholder: {
+                                                Color.gray.opacity(0.3)
+                                            }
+                                            .frame(width: 50, height: 50)
+                                            .clipShape(Circle())
+                                        } else {
+                                            Image(systemName: "person.3.fill")
+                                                .resizable()
+                                                .scaledToFit()
+                                                .frame(width: 30, height: 30)
+                                                .padding(10)
+                                                .background(Color.gray.opacity(0.1))
+                                                .clipShape(Circle())
+                                                .foregroundColor(.gray)
+                                        }
+                                        
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            // ジャンル
+                                            Text(club.genre)
+                                                .font(.caption2)
+                                                .foregroundColor(.blue)
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 2)
+                                                .background(Color.blue.opacity(0.1))
+                                                .cornerRadius(4)
+                                            
+                                            // クラブ名
+                                            Text(club.clubName)
+                                                .font(.body)
+                                                .fontWeight(.medium)
+                                            
+                                            // キーワード (最初の2つくらいを表示)
+                                            if !club.keywords.isEmpty {
+                                                Text(club.keywords.joined(separator: ", "))
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                                    .lineLimit(1)
+                                            }
+                                        }
+                                    }
+                                    .padding(.vertical, 4)
+                                }
+                            }
+                        }
+                    }
+                    
                 }
                 .listStyle(.insetGrouped)
             }
