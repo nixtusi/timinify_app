@@ -42,7 +42,7 @@ class TaskFetcher: ObservableObject {
     }
 
     // APIではなくScraperを使用
-    func fetchTasksFromAPI() {
+    func fetchTasksFromAPI(retries: Int = 5) {
         loadSavedTasks()
 
         let studentNumber = Auth.auth().currentUser?.email?.components(separatedBy: "@").first ??
@@ -63,10 +63,10 @@ class TaskFetcher: ObservableObject {
         // スクレイピング実行
         AssignmentScraper.shared.fetchAssignments(studentID: studentNumber, password: password) { [weak self] result in
             guard let self = self else { return }
-            self.isLoading = false
             
             switch result {
             case .success(let fetchedTasks):
+                // 成功時はリトライせずに終了
                 self.success = true
                 self.tasks = fetchedTasks
                 self.saveTasksToLocal(fetchedTasks)
@@ -77,16 +77,30 @@ class TaskFetcher: ObservableObject {
                 }
                 self.updateLastUpdated()
                 print("✅ 課題取得成功（スクレイピング）: \(fetchedTasks.count)件")
+                self.isLoading = false // 成功時にisLoadingを解除
                 
             case .failure(let error):
-                self.success = false
-                print("❌ 課題取得失敗: \(error)")
-                if let se = error as? ScrapeError, se == .timeout {
-                    self.errorMessage = "接続がタイムアウトしました。通信環境を確認してください。"
+                // 失敗時
+                if retries > 1 {
+                    // リトライ可能: 2秒待機してから再試行
+                    print("⚠️ 課題取得失敗。残り\(retries - 1)回リトライします。")
+                    Task { @MainActor in
+                        try await Task.sleep(nanoseconds: 2_000_000_000) // 2秒待機
+                        self.fetchTasksFromAPI(retries: retries - 1)
+                    }
                 } else {
-                    self.errorMessage = "課題の取得に失敗しました。もう一度取得をやり直しても、できなければ管理者に連絡してください。"
+                    // 最終リトライ失敗: アラートを表示して終了
+                    self.isLoading = false
+                    self.success = false
+                    print("❌ 課題取得失敗: \(error) - リトライ上限に達しました。")
+
+                    if let se = error as? ScrapeError, se == .timeout {
+                        self.errorMessage = "接続がタイムアウトしました。通信環境を確認してください。"
+                    } else {
+                        self.errorMessage = "課題の取得に失敗しました。もう一度取得をやり直しても、できなければ管理者に連絡してください。"
+                    }
+                    self.showErrorAlert = true
                 }
-                self.showErrorAlert = true
             }
         }
     }
