@@ -77,7 +77,7 @@ struct SearchView: View {
                                     .foregroundColor(.secondary)
                             } else {
                                 ForEach(searchResultsClasses) { item in
-                                    // ✅ 修正: シートを経由せず直接画面遷移
+                                    // 修正: シートを経由せず直接画面遷移
                                     NavigationLink(destination: SyllabusDetailView(
                                         syllabus: item.toSyllabus,
                                         day: "ー", // 検索からの場合は「ー」を渡してタイトルを「シラバス」にする
@@ -142,6 +142,8 @@ struct SearchView: View {
                 .listStyle(.insetGrouped)
             }
             .navigationTitle("検索")
+            // ✅ 変更: タイトルを小さく（インライン）して、検索バーを最初から最上部に持ってくる
+            .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "検索")
             // 検索テキスト変更時の処理
             .onChange(of: searchText) { _, newValue in
