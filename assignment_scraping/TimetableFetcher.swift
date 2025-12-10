@@ -65,8 +65,6 @@ class TimetableFetcher: ObservableObject {
     @Published var errorMessage: String?
 
     private let firestore = Firestore.firestore()
-    private let baseURL = "https://api.timinify.com"
-    
     private let localKey = "cachedTimetableItems" // UserDefaultsキー名
 
     @MainActor
@@ -88,31 +86,39 @@ class TimetableFetcher: ObservableObject {
         let studentNumber = email.components(separatedBy: "@").first ?? ""
         let password = UserDefaults.standard.string(forKey: "loginPassword") ?? ""
 
+        // 文字列 "1,2" を [1, 2] に変換
+        let targetQuarters = quarter
+            .split(separator: ",")
+            .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+
+        // 日付文字列を Date に変換
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let start = formatter.date(from: startDate) ?? Date()
+        let end = formatter.date(from: endDate) ?? Date()
+
         do {
-        try Task.checkCancellation()   // ✅ 最初にチェック
-        let response = try await requestUribonet(
-                studentNumber: studentNumber,
-                password: password,
-                quarter: quarter,
-                startDate: startDate,
-                endDate: endDate
-            )
             try Task.checkCancellation()
 
-            timetableItems = response.timetables.flatMap { (key, quarterData) in
-                let q = Int(key) ?? 1
-                let list = quarterData.timetable ?? []
-                return list.map { item in
-                    var modified = item
-                    modified.quarter = q
-                    return modified
-                }
-            }
+            // ✅ API ではなくオンデバイススクレイピングを実行
+            let data = try await TimetableScraper.shared.fetch(
+                studentID: studentNumber,
+                password: password,
+                quarters: targetQuarters,
+                start: start,
+                end: end
+            )
 
-            try Task.checkCancellation()   // ✅ Firestore書き込み前にも
+            try Task.checkCancellation()
+
+            // 取得したデータを反映
+            self.timetableItems = data.timetables
+
+            // Firestore へのアップロード（スケジュール情報を使って教室をマージ）
             await uploadToFirestore(
                 studentNumber: studentNumber,
-                schedules: response.schedules
+                items: data.timetables,
+                schedules: data.schedules
             )
 
         } catch {
@@ -120,7 +126,7 @@ class TimetableFetcher: ObservableObject {
         }
 
         isLoading = false
-        
+
         if let errorMessage = errorMessage {
             print("❌ 時間割取得エラー: \(errorMessage)")
         } else {
@@ -128,105 +134,30 @@ class TimetableFetcher: ObservableObject {
         }
     }
 
-    private func requestUribonet(
-        studentNumber: String,
-        password: String,
-        quarter: String,
-        startDate: String,
-        endDate: String,
-        retries: Int = 2
-    ) async throws -> UribonetResponse {
-        let url = URL(string: baseURL + "/uribonet")!
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 90
-        request.httpMethod = "POST"
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let body: [String: Any] = [
-            "student_number": studentNumber,
-            "password": password,
-            "quarter": quarter,
-            "start_date": startDate,
-            "end_date": endDate
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        do {
-            let (data, resp) = try await URLSession.shared.data(for: request)
-            guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else {
-                throw NSError(domain: "APIError", code: -1, userInfo: [NSLocalizedDescriptionKey: "APIエラー"])
-            }
-
-            let decoder = JSONDecoder()
-            // Keep explicit keys (no convertFromSnakeCase) because the payload keys already match.
-            do {
-                return try decoder.decode(UribonetResponse.self, from: data)
-            } catch let DecodingError.keyNotFound(key, context) {
-                let raw = String(data: data, encoding: .utf8) ?? "<non‑utf8>"
-                throw NSError(
-                    domain: "JSONDecoding",
-                    code: -2,
-                    userInfo: [NSLocalizedDescriptionKey: "Missing key: \(key.stringValue) at \(context.codingPath.map{ $0.stringValue }.joined(separator: "."))\nRAW: \(raw.prefix(1000))..."]
-                )
-            } catch let DecodingError.typeMismatch(type, context) {
-                let raw = String(data: data, encoding: .utf8) ?? "<non‑utf8>"
-                throw NSError(
-                    domain: "JSONDecoding",
-                    code: -3,
-                    userInfo: [NSLocalizedDescriptionKey: "Type mismatch for \(type) at \(context.codingPath.map{ $0.stringValue }.joined(separator: "."))\nRAW: \(raw.prefix(1000))..."]
-                )
-            } catch let DecodingError.valueNotFound(type, context) {
-                let raw = String(data: data, encoding: .utf8) ?? "<non‑utf8>"
-                throw NSError(
-                    domain: "JSONDecoding",
-                    code: -4,
-                    userInfo: [NSLocalizedDescriptionKey: "Value not found for \(type) at \(context.codingPath.map{ $0.stringValue }.joined(separator: "."))\nRAW: \(raw.prefix(1000))..."]
-                )
-            } catch {
-                let raw = String(data: data, encoding: .utf8) ?? "<non‑utf8>"
-                throw NSError(
-                    domain: "JSONDecoding",
-                    code: -5,
-                    userInfo: [NSLocalizedDescriptionKey: "Unknown decode error: \(error.localizedDescription)\nRAW: \(raw.prefix(1000))..."]
-                )
-            }
-
-        } catch {
-            if retries > 0 {
-                try await Task.sleep(nanoseconds: 1_000_000_000)
-                return try await requestUribonet(
-                    studentNumber: studentNumber,
-                    password: password,
-                    quarter: quarter,
-                    startDate: startDate,
-                    endDate: endDate,
-                    retries: retries - 1
-                )
-            }
-            throw error
-        }
-    }
-
     @MainActor
     private func uploadToFirestore(
         studentNumber: String,
+        items: [TimetableItem],
         schedules: [DailySchedule]
     ) async {
         let entryYear = "20" + String(studentNumber.prefix(2))
-        let academicYear = "2025"
+        let academicYear = "2025" // 現在年等から動的に取得しても良い
 
-        for item in timetableItems {
-            if Task.isCancelled { return }        // ✅ 早期終了
+        for item in items {
+            if Task.isCancelled { return }
             try? Task.checkCancellation()
-        
-            let rawRoom = schedules.first(where: { daySched in
-                daySched.schedule.contains(where: {
-                    ($0.period == item.period) && (($0.subject ?? "") == item.title) && ($0.room != nil)
-                })
-            })?
-            .schedule.first(where: { ($0.period == item.period) && (($0.subject ?? "") == item.title) })?
-            .room ?? ""
 
+            // スケジュールデータから、科目名と時限が一致する教室情報を探す
+            let rawRoom = schedules
+                .flatMap { $0.schedule }
+                .first(where: {
+                    ($0.period == item.period) &&
+                    ($0.subject?.contains(item.title) ?? false) &&
+                    ($0.room != nil)
+                })?
+                .room ?? ""
+
+            // 全角英数を半角に変換などの処理
             let room = rawRoom.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? rawRoom
 
             let docData: [String: Any] = [
@@ -235,7 +166,7 @@ class TimetableFetcher: ObservableObject {
                 "period": item.period,
                 "teacher": item.teacher,
                 "title": item.title,
-                "room": room,
+                "room": room, // スクレイピングした教室情報をセット
                 "quarter": item.quarter ?? 1
             ]
 
