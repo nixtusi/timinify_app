@@ -290,41 +290,28 @@ class TimetableFetcher: ObservableObject {
                     item.color = colorHex
                 }
 
-                if item.room == nil || item.room == "" {
-                    let classRef = firestore
-                        .collection("class")
-                        .document(String(year))
-                        .collection("Q\(quarter)")
-                        .document(item.code)
-                    //let classDoc = try await classRef.getDocument()
-                    let classDoc = try await classRef.getDocument(source: .server)
-
+                // ✅ 常に共有データを参照しにいく
+                let classRef = firestore
+                    .collection("class")
+                    .document(String(year))
+                    .collection("Q\(quarter)")
+                    .document(item.code)
+                
+                // エラーでループが止まらないように try? を使用
+                if let classDoc = try? await classRef.getDocument(source: .server) {
+                    
                     let sharedRoom = classDoc.data()?["room"] as? String ?? ""
                     let personalRoom = item.room ?? ""
+                    
+                    // 共有データ(class)のroomを最優先にする
                     let finalRoom: String
                     if !sharedRoom.isEmpty {
                         finalRoom = sharedRoom
-                        // 共有が正として、個人値が異なる場合は個人側を同期
-                        if sharedRoom != personalRoom {
-                            try await path.document(item.id).setData([
-                                "room": sharedRoom
-                            ], merge: true)
-                            print("↩️ 個人roomを共有roomで同期: \(item.id)")
-                        }
-                    } else if !personalRoom.isEmpty {
-                        finalRoom = personalRoom
-                        // 共有が未登録なら個人値を共有に反映（初回補完）
-                        try await classRef.setData([
-                            "room": personalRoom,
-                            "teacher": item.teacher,
-                            "title": item.title,
-                            "code": item.code
-                        ], merge: true)
-                        print("✅ classに反映: \(item.code)")
                     } else {
-                        finalRoom = ""
+                        finalRoom = personalRoom
                     }
-                    //roomだけ差し替える（item再生成せず直接書き換え）
+                    
+                    // roomを更新した新しいItemを作成
                     item = TimetableItem(
                         code: item.code,
                         day: item.day,
@@ -336,7 +323,8 @@ class TimetableFetcher: ObservableObject {
                         color: item.color
                     )
                 }
-                items.append(item) //どんな状態でも item を追加
+                
+                items.append(item)
             }
 
             timetableItems = items
