@@ -121,8 +121,27 @@ class TimetableFetcher: ObservableObject {
                 schedules: data.schedules
             )
 
+//        } catch {
+//            errorMessage = error.localizedDescription
+//        }
         } catch {
-            errorMessage = error.localizedDescription
+            print("❌ [Fetcher] エラー発生: \(error)")
+            
+            if let scraperError = error as? ScraperError {
+                switch scraperError {
+                case .contactInfoCheckRequired:
+                    // ✅ ユーザー指定のアラート文言を設定
+                    errorMessage = "うりぼーにアクセスし、本人連絡先の変更がないかの確認をしてください"
+                case .loginFailed(let msg):
+                    errorMessage = msg
+                case .timeout:
+                    errorMessage = "接続がタイムアウトしました"
+                default:
+                    errorMessage = "データの取得に失敗しました (\(scraperError))"
+                }
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
 
         isLoading = false
