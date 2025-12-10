@@ -19,7 +19,7 @@ enum ScraperError: Error {
     case navigationFailed
     case parsingFailed
     case surveyRequired
-    case contactInfoCheckRequired // 本人連絡先確認が必要
+    case contactInfoCheckRequired
 }
 
 @MainActor
@@ -58,7 +58,7 @@ class TimetableScraper: NSObject, WKNavigationDelegate {
         config.websiteDataStore = .nonPersistent()
         self.webView = WKWebView(frame: .zero, configuration: config)
         self.webView.navigationDelegate = self
-        // UserAgentはデフォルト（スマホ版）のままにするため設定しない
+        // デフォルトのUserAgent（スマホ版）を使用
     }
     
     func fetch(studentID: String, password: String, quarters: [Int], start: Date, end: Date) async throws -> ScrapedTimetableData {
@@ -79,10 +79,11 @@ class TimetableScraper: NSObject, WKNavigationDelegate {
     }
     
     private func startScraping() {
-        print("🚀 [Scraper] 処理開始 (Mobileモード)")
+        print("🚀 [Scraper] 処理開始 (タブ構造対応版)")
         self.state = .loggingIn
         
         timeoutTimer?.invalidate()
+        // タイムアウトを少し長めに確保
         timeoutTimer = Timer.scheduledTimer(withTimeInterval: 120.0, repeats: false) { [weak self] _ in
             print("⏰ [Scraper] タイムアウト")
             self?.finish(with: .failure(ScraperError.timeout))
@@ -92,22 +93,18 @@ class TimetableScraper: NSObject, WKNavigationDelegate {
         webView.load(URLRequest(url: url))
     }
     
-    // MARK: - ページ遷移ハンドリング
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         let url = webView.url?.absoluteString ?? ""
         print("🌐 [Scraper] Loaded: \(url)")
         
-        // どの画面でも、まず「本人連絡先確認」が出ていないかチェック
         checkForContactInfoScreen { [weak self] isContactScreen in
             guard let self = self else { return }
-            
             if isContactScreen {
-                print("🛑 [Scraper] 本人連絡先変更確認画面を検出しました")
+                print("🛑 [Scraper] 本人連絡先変更確認画面を検出")
                 self.finish(with: .failure(ScraperError.contactInfoCheckRequired))
                 return
             }
             
-            // 以下、通常のフロー
             if url.contains("knossos.center.kobe-u.ac.jp/auth") || url.contains("idp") {
                 self.handleLogin()
             } else if url.contains("campusweb/portal.do") {
@@ -126,10 +123,8 @@ class TimetableScraper: NSObject, WKNavigationDelegate {
                     }
                 } else {
                     print("📖 [Scraper] 履修登録画面に到達")
-                    // スマホ版はロードやタブ表示に時間がかかることがあるため少し待つ
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                        self.processTimetable()
-                    }
+                    // タブ切り替え処理を開始
+                    self.processTimetable()
                 }
             } else if url.contains("cws/schedule") {
                 print("🗓 [Scraper] スケジュール画面(cws)に到達")
@@ -142,7 +137,6 @@ class TimetableScraper: NSObject, WKNavigationDelegate {
     
     // MARK: - 本人連絡先確認画面の検出
     private func checkForContactInfoScreen(completion: @escaping (Bool) -> Void) {
-        // ID: gakusekiAddressInputForm があるかどうかで判定
         let js = "document.getElementById('gakusekiAddressInputForm') != null"
         webView.evaluateJavaScript(js) { res, _ in
             completion((res as? Bool) ?? false)
@@ -179,6 +173,7 @@ class TimetableScraper: NSObject, WKNavigationDelegate {
             var topBtn = document.querySelector("input[type=submit][value='トップ画面へ']");
             if (topBtn) { topBtn.click(); return 'clicked_top'; }
             if (document.getElementById('menu-link-mt-sy')) { return 'on_home'; }
+            if (document.querySelector('.portal-panel') || document.title.includes('ポータル')) { return 'on_home'; }
             return 'unknown';
         })();
         """
@@ -190,33 +185,95 @@ class TimetableScraper: NSObject, WKNavigationDelegate {
     // MARK: - 履修登録
     private func navigateToTimetable() {
         self.state = .navigatingToTimetable
-        // スマホ版のメニューは隠れている可能性があるため、強制クリックする
-        executeClickByText(text: "履修・抽選", thenWait: 1.0) {
-            self.executeClickByText(text: "履修登録・登録状況照会", thenWait: 0) {}
+        // スマホメニューを開いてからクリック
+        let jsOpenMenu = """
+        (function() {
+            var menuBtn = document.querySelector('#menu_icon, .sp-menu-btn, img[alt="メニュー"]');
+            if (menuBtn && menuBtn.offsetParent !== null) { menuBtn.click(); return true; }
+            return false;
+        })();
+        """
+        webView.evaluateJavaScript(jsOpenMenu) { _, _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                self.executeClickByText(text: "履修", thenWait: 1.0) {
+                    self.executeClickByText(text: "履修登録・登録状況照会", thenWait: 0) {}
+                }
+            }
         }
     }
     
     private func processTimetable() {
         if case .switchingQuarter(let index) = state {
+            // すでに処理中のクォーターがある場合（タブ切り替え後のロード完了時など）
             scrapeCurrentQuarter(index: index)
         } else {
+            // 最初のクォーターから開始
             self.state = .switchingQuarter(0)
             switchToQuarter(index: 0)
         }
     }
     
+    // 【重要修正】タブの状態を見てクリックするか判断する
     private func switchToQuarter(index: Int) {
         guard index < targetQuarters.count else {
             navigateToSchedule()
             return
         }
         let q = targetQuarters[index]
-        print("🔄 [Scraper] 第\(q)クォーター タブをクリック試行")
+        print("🔄 [Scraper] 第\(q)クォーター の処理を開始")
         
-        waitForElementContainingText(text: "第\(q)クォーター", timeout: 5.0) { found in
-            self.executeClickByText(text: "第\(q)クォーター", thenWait: 3.0) {
+        // 専用のタブ切り替え関数を実行
+        switchQuarterTab(quarter: q) { result in
+            if result == "already_selected" {
+                // すでに選択されているのでクリック不要。すぐにデータ取得へ。
+                print("ℹ️ [Scraper] Q\(q)は既に選択されています。データ取得へ進みます。")
                 self.scrapeCurrentQuarter(index: index)
+                
+            } else if result == "clicked" {
+                // クリックした。didFinishが呼ばれるのを待つ（何もしない）
+                print("👆 [Scraper] Q\(q)のタブをクリックしました。ページ遷移を待ちます。")
+                
+            } else {
+                // 見つからなかった場合など
+                print("⚠️ [Scraper] Q\(q)のタブが見つかりませんでした。スキップして次へ。")
+                self.state = .switchingQuarter(index + 1)
+                self.switchToQuarter(index: index + 1)
             }
+        }
+    }
+    
+    // 【新規】タブ専用のクリック処理
+    private func switchQuarterTab(quarter: Int, completion: @escaping (String) -> Void) {
+        let js = """
+        (function() {
+            var qText = '第' + \(quarter) + 'クォーター';
+            // タブのセル（td）を探す
+            var cells = document.querySelectorAll('td.rishu-tab, td.rishu-tab-sel');
+            
+            for (var i = 0; i < cells.length; i++) {
+                var cell = cells[i];
+                // テキストが含まれているか（空白除去して比較）
+                var cellText = (cell.innerText || '').replace(/\\s+/g, '');
+                
+                if (cellText.includes(qText)) {
+                    // 1. 選択済みクラス(rishu-tab-sel)を持っているか？
+                    if (cell.classList.contains('rishu-tab-sel')) {
+                        return 'already_selected';
+                    }
+                    // 2. 持っていなければリンク(aタグ)を探してクリック
+                    var link = cell.querySelector('a');
+                    if (link) {
+                        link.click();
+                        return 'clicked';
+                    }
+                }
+            }
+            return 'not_found';
+        })();
+        """
+        
+        webView.evaluateJavaScript(js) { res, _ in
+            completion((res as? String) ?? "not_found")
         }
     }
     
@@ -233,6 +290,7 @@ class TimetableScraper: NSObject, WKNavigationDelegate {
                 if (text === '未登録' || text === '') return;
                 var lines = text.split('\\n').map(s => s.trim()).filter(s => s);
                 if (lines.length < 2) return;
+                
                 var code = '', title = '', teacher = '';
                 if (lines.length >= 3) {
                     code = lines[0]; title = lines[1]; teacher = lines[2];
@@ -266,6 +324,8 @@ class TimetableScraper: NSObject, WKNavigationDelegate {
                 }
                 self?.scrapedItems.append(contentsOf: items)
             }
+            
+            // データ取得が終わったら次のクォーターへ
             self?.state = .switchingQuarter(index + 1)
             self?.switchToQuarter(index: index + 1)
         }
@@ -280,8 +340,19 @@ class TimetableScraper: NSObject, WKNavigationDelegate {
     }
     
     private func navigateToSchedulePageFromPortal() {
-        executeClickByText(text: "休補・スケジュール", thenWait: 1.0) {
-            self.executeClickByText(text: "スケジュール管理", thenWait: 0) {}
+        let jsOpenMenu = """
+        (function() {
+            var menuBtn = document.querySelector('#menu_icon, .sp-menu-btn, img[alt="メニュー"]');
+            if (menuBtn && menuBtn.offsetParent !== null) { menuBtn.click(); return true; }
+            return false;
+        })();
+        """
+        webView.evaluateJavaScript(jsOpenMenu) { _, _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                self.executeClickByText(text: "休補", thenWait: 1.0) {
+                    self.executeClickByText(text: "スケジュール管理", thenWait: 0) {}
+                }
+            }
         }
     }
     
@@ -325,24 +396,25 @@ class TimetableScraper: NSObject, WKNavigationDelegate {
         }
     }
 
-    // MARK: - ヘルパー関数 (修正版)
+    // MARK: - ヘルパー関数
     
-    /// テキストを含む要素をクリック（空白除去・部分一致・隠れていてもクリック）
     private func executeClickByText(text: String, thenWait: TimeInterval, completion: @escaping () -> Void) {
         let cleanTarget = text.replacingOccurrences(of: " ", with: "")
         
         let js = """
         (function() {
             var target = '\(cleanTarget)';
-            // button や a タグだけでなく、div や span も対象にする
-            var elements = document.querySelectorAll('a, button, input[type=button], input[type=submit], div, span, li');
+            var elements = document.querySelectorAll('a, button, input[type=button], input[type=submit], div, span, li, p');
             
             for (var i = 0; i < elements.length; i++) {
                 var el = elements[i];
                 var t = (el.innerText || el.value || '').replace(/\\s+/g, '');
                 
                 if (t.includes(target)) {
-                    // ★修正: 可視チェック(offsetParent)を削除し、隠れていてもクリックする
+                    if (el.closest('a')) {
+                        el.closest('a').click();
+                        return true;
+                    }
                     el.click();
                     return true;
                 }
@@ -352,55 +424,15 @@ class TimetableScraper: NSObject, WKNavigationDelegate {
         """
         
         webView.evaluateJavaScript(js) { res, _ in
-            let success = (res as? Bool) ?? false
-            if success {
-                print("👆 [Scraper] クリック成功: \(text)")
-            } else {
-                print("⚠️ [Scraper] クリック失敗: \(text) が見つかりません")
-            }
-            
-            if thenWait > 0 {
-                DispatchQueue.main.asyncAfter(deadline: .now() + thenWait) { completion() }
-            } else {
-                completion()
-            }
-        }
-    }
-    
-    private func waitForElementContainingText(text: String, timeout: TimeInterval, completion: @escaping (Bool) -> Void) {
-        let cleanTarget = text.replacingOccurrences(of: " ", with: "")
-        let start = Date()
-        waitTimer?.invalidate()
-        
-        waitTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] timer in
-            let js = """
-            (function() {
-                var target = '\(cleanTarget)';
-                var elements = document.querySelectorAll('a, button, input, div, span, li');
-                for (var i = 0; i < elements.length; i++) {
-                    var t = (elements[i].innerText || elements[i].value || '').replace(/\\s+/g, '');
-                    if (t.includes(target)) return true;
-                }
-                return false;
-            })();
-            """
-            self?.webView.evaluateJavaScript(js) { res, _ in
-                if let exists = res as? Bool, exists {
-                    timer.invalidate()
-                    completion(true)
-                } else if Date().timeIntervalSince(start) > timeout {
-                    timer.invalidate()
-                    print("⚠️ [Scraper] 待機タイムアウト: \(text)")
-                    completion(false)
-                }
-            }
+            let clicked = (res as? Bool) ?? false
+            if !clicked { print("⚠️ [Scraper] クリック失敗: \(text)") }
+            DispatchQueue.main.asyncAfter(deadline: .now() + (thenWait > 0 ? thenWait : 0.5)) { completion() }
         }
     }
     
     private func waitForSelector(_ selector: String, completion: @escaping (Bool) -> Void) {
         let start = Date()
         waitTimer?.invalidate()
-        
         waitTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] timer in
             let js = "document.querySelector('\(selector)') != null"
             self?.webView.evaluateJavaScript(js) { res, _ in
