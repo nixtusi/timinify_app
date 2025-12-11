@@ -159,11 +159,17 @@ class TimetableFetcher: ObservableObject {
         items: [TimetableItem],
         schedules: [DailySchedule]
     ) async {
+        print("🔥 [Firestore] アップロード処理開始: 合計 \(items.count) 件のデータを処理します")
+        
         let entryYear = "20" + String(studentNumber.prefix(2))
         let academicYear = "2025" // 現在年等から動的に取得しても良い
 
         for item in items {
-            if Task.isCancelled { return }
+            if Task.isCancelled {
+                print("⚠️ [Firestore] アップロード処理がキャンセルされました")
+                return
+            }
+            
             try? Task.checkCancellation()
 
             // スケジュールデータから、科目名と時限が一致する教室情報を探す
@@ -198,10 +204,14 @@ class TimetableFetcher: ObservableObject {
 
             do {
                 try await path.document(item.id).setData(docData, merge: true)
+                
+                print("✅ [Firestore] 保存成功: \(item.title) (Q\(item.quarter ?? 0) \(item.day)\(item.period))")
             } catch {
                 print("❌ Firestore 保存エラー: \(error.localizedDescription)")
             }
         }
+        
+        print("🏁 [Firestore] 全データのアップロード処理が完了しました")
     }
 
     @MainActor
@@ -303,6 +313,4 @@ class TimetableFetcher: ObservableObject {
             print("⚠️ ローカルデータが見つかりません")
         }
     }
-    
-    
 }
