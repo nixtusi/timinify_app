@@ -16,31 +16,56 @@ import FirebaseAuth
 struct BeefTaskApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var appState = AppState()
+    
+    @State private var showEmailVerificationAlert = false
 
     init() {
         //通知許可
         NotificationManager.shared.requestAuthorization()
     }
-
+    
     var body: some Scene {
         WindowGroup {
-            //RootView()
             SplashView()
                 .environmentObject(appState)
                 .onAppear {
-                    //FirebaseAuth からログイン状態を判定（メール認証済みのみ）
-                    if let user = Auth.auth().currentUser {
-                        user.reload { _ in
-                            if user.isEmailVerified {
-                                appState.isLoggedIn = true
-                            }
-                        }
-                    }
-                    //FirebaseAuth のメールアドレスから学籍番号を取得（AppStorage は不要）
-                    if let email = Auth.auth().currentUser?.email {
-                        appState.studentNumber = email.components(separatedBy: "@").first ?? ""
-                    }
+                    checkEmailVerification()
                 }
+                // ✅ 追加: メール未認証時のアラート
+                .alert("メール認証が必要です", isPresented: $showEmailVerificationAlert) {
+                    Button("メールを送信") {
+                        resendVerificationEmail()
+                    }
+                    Button("閉じる", role: .cancel) {}
+                } message: {
+                    Text("メール認証が完了していません。確認メールを送信しますか？")
+                }
+        }
+    }
+    
+    private func checkEmailVerification() {
+        if let user = Auth.auth().currentUser {
+            user.reload { _ in
+                if user.isEmailVerified {
+                    appState.isLoggedIn = true
+                } else {
+                    // ログイン済みだが未認証の場合にアラートを表示
+                    showEmailVerificationAlert = true
+                }
+            }
+        }
+        if let email = Auth.auth().currentUser?.email {
+            appState.studentNumber = email.components(separatedBy: "@").first ?? ""
+        }
+    }
+    
+    private func resendVerificationEmail() {
+        Auth.auth().currentUser?.sendEmailVerification { error in
+            if let error = error {
+                print("メール送信エラー: \(error.localizedDescription)")
+            } else {
+                print("確認メールを送信しました")
+            }
         }
     }
 
@@ -73,20 +98,51 @@ struct BeefTaskApp: App {
     }
 
     //課題情報を取得してWidgetに保存
+    // 課題情報を取得してWidgetに保存（オンデバイス・スクレイピング版）
+    @MainActor // WKWebViewを操作するためメインスレッドで実行
     static func fetchAndStoreAssignments() async {
-        do {
-            let url = URL(string: "https://your-api.com/assignments")! // ← 必要に応じて差し替え
-            let (data, _) = try await URLSession.shared.data(from: url)
-            let tasks = try JSONDecoder().decode([SharedTask].self, from: data)
+        // 1. 保存されているログイン情報を取得
+        guard let studentID = UserDefaults.standard.string(forKey: "studentNumber"),
+              let password = UserDefaults.standard.string(forKey: "loginPassword"),
+              !studentID.isEmpty, !password.isEmpty else {
+            print("❌ [Background] ログイン情報が保存されていないため、自動更新をスキップします")
+            return
+        }
 
-            let defaults = UserDefaults(suiteName: "group.com.yuta.beefapp")
-            let encoded = try JSONEncoder().encode(tasks)
-            defaults?.set(encoded, forKey: "widgetTasks")
+        print("📡 [Background] オンデバイス・スクレイピングを開始します...")
 
-            WidgetCenter.shared.reloadAllTimelines()
-            print("✅ 課題情報を更新し、Widget再読込")
-        } catch {
-            print("❌ 課題取得エラー: \(error)")
+        // 2. AssignmentScraperを使って課題を取得（非同期処理）
+        await withCheckedContinuation { continuation in
+            AssignmentScraper.shared.fetchAssignments(studentID: studentID, password: password) { result in
+                
+                switch result {
+                case .success(let tasks):
+                    // 3. 取得した課題をWidget用に変換
+                    let sharedTasks = tasks.map {
+                        SharedTask(title: $0.title, deadline: $0.deadline, url: $0.url)
+                    }
+                    
+                    // 4. App GroupのUserDefaultsに保存
+                    if let sharedDefaults = UserDefaults(suiteName: "group.com.yuta.beefapp") {
+                        if let encoded = try? JSONEncoder().encode(sharedTasks) {
+                            sharedDefaults.set(encoded, forKey: "widgetTasks")
+                            sharedDefaults.set(Date(), forKey: "widgetLastUpdated") // 最終更新日時
+                            
+                            // 5. ウィジェットを更新
+                            WidgetCenter.shared.reloadAllTimelines()
+                            print("✅ [Background] 課題データの更新・保存完了 (\(tasks.count)件)")
+                        }
+                    } else {
+                        print("❌ [Background] App Groupへのアクセスに失敗しました")
+                    }
+                    
+                case .failure(let error):
+                    print("❌ [Background] スクレイピング失敗: \(error.localizedDescription)")
+                }
+                
+                // 処理完了を通知
+                continuation.resume()
+            }
         }
     }
 }

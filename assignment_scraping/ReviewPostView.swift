@@ -28,6 +28,8 @@ struct ReviewPostView: View {
     @State private var attendanceFrequency: AttendanceFrequency? = nil
     @State private var freeComment: String = ""
     @State private var showSaveAlert = false
+    
+    @State private var isPosting = false
 
     // ⬇︎ キーボード制御
     @FocusState private var commentFocused: Bool
@@ -91,20 +93,20 @@ struct ReviewPostView: View {
                     }
 
                     // 投稿ボタン
-                    Section {
-                        Button {
-                            print("📨 投稿ボタン tapped")
-                            Task { await submitReview() }
-                        } label: {
-                            Text("口コミを投稿")
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 48)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(Color(hex: "#4B3F96"))
-                        .disabled(rating == 0 || easyScore == 0)
-                        .listRowInsets(.init()) // 端まで広げて押しやすく
-                    }
+//                    Section {
+//                        Button {
+//                            print("📨 投稿ボタン tapped")
+//                            Task { await submitReview() }
+//                        } label: {
+//                            Text("口コミを投稿")
+//                                .frame(maxWidth: .infinity)
+//                                .frame(height: 48)
+//                        }
+//                        .buttonStyle(.borderedProminent)
+//                        .tint(Color(hex: "#4B3F96"))
+//                        .disabled(rating == 0 || easyScore == 0)
+//                        .listRowInsets(.init()) // 端まで広げて押しやすく
+//                    }
                 }
                 // ⬇︎ フォーム外タップでキーボードを閉じる（ボタンのタップを奪わない）
                 .scrollDismissesKeyboard(.interactively)
@@ -115,6 +117,27 @@ struct ReviewPostView: View {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("キャンセル") { dismiss() }
                 }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        print("📨 投稿ボタン tapped")
+                        isPosting = true // 処理開始
+                        Task {
+                            await submitReview()
+                            isPosting = false // 処理終了
+                        }
+                    } label: {
+                        if isPosting {
+                            ProgressView() // 処理中はグルグルを表示
+                        } else {
+                            Text("投稿")
+                                .bold()
+                        }
+                    }
+                    // 入力不備があるか、投稿処理中は無効化
+                    .disabled(rating == 0 || easyScore == 0 || isPosting)
+                }
+                
                 // ⌨️ キーボード閉じるボタン
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()

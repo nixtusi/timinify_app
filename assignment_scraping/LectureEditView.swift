@@ -119,21 +119,28 @@ struct LectureEditView: View {
                 }
             }
             
-            Section {
-                Button(action: uploadLectureData) {
-                    Text("保存")
-                        .bold()
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color(hex: "#4B3F96"))
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
-                }
-                .listRowBackground(Color.clear) // 背景透明でボタンデザインをそのまま使う
-            }
+//            Section {
+//                Button(action: uploadLectureData) {
+//                    Text("保存")
+//                        .bold()
+//                        .frame(maxWidth: .infinity)
+//                        .padding()
+//                        .background(Color(hex: "#4B3F96"))
+//                        .foregroundColor(.white)
+//                        .cornerRadius(10)
+//                }
+//                .listRowBackground(Color.clear) // 背景透明でボタンデザインをそのまま使う
+//            }
         }
         .navigationTitle("授業の設定")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("保存") {
+                    uploadLectureData()
+                }
+            }
+        }
         .onAppear {
             newRoom = room
             let db = Firestore.firestore()

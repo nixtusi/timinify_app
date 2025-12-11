@@ -98,27 +98,21 @@ struct SettingsView: View {
                             .font(.body)
                             .foregroundColor(.primary)
 
-                        // 変更: 確認状態の表示
-                        HStack {
-                            Label(isVerified ? "メール確認済み" : "メール未確認", systemImage: isVerified ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                                .foregroundColor(isVerified ? .green : .orange)
-                                .font(.subheadline)
-
-                            Spacer()
-
-                            // 変更: 未確認の場合のみ「確認メール再送」
-                            if !isVerified {
+                        // 変更: 確認済みかどうかに関わらず、状態表示ラベルは削除
+                        // 未確認の場合のみ「確認メール再送」ボタンを表示
+                        if !isVerified {
+                            HStack {
+                                Spacer()
                                 Button {
                                     resendVerificationEmail()
                                 } label: {
-                                    Text(verifyResendRemaining > 0 ? "再送 (\(verifyResendRemaining)s)" : "確認メールを再送")
+                                    Text(verifyResendRemaining > 0 ? "確認メール再送 (\(verifyResendRemaining)s)" : "確認メールを再送")
                                         .font(.footnote.weight(.semibold))
+                                        .foregroundColor(.orange)
                                 }
                                 .disabled(verifyResendRemaining > 0)
                             }
-                        }
-
-                        if !isVerified {
+                            
                             Text("※ 受信トレイ／迷惑メールをご確認ください。リンクは一定時間で失効します。")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
