@@ -290,18 +290,26 @@ class TimetableScraper: NSObject, WKNavigationDelegate {
     }
     
     // MARK: - スケジュール (Schedule)
-    private func navigateToSchedule() {
-        print("📂 [Scraper] スケジュール画面へ移動開始")
-        self.state = .navigatingToSchedule
-        let homeUrl = "https://kym22-web.ofc.kobe-u.ac.jp/campusweb/portal.do?page=main"
-        webView.load(URLRequest(url: URL(string: homeUrl)!))
-    }
-    
-    private func navigateToSchedulePageFromPortal() {
-        executeClickByText(text: "休補・スケジュール", thenWait: 1.0) {
-            self.executeClickByText(text: "スケジュール管理", thenWait: 0) {}
+        private func navigateToSchedule() {
+            print("📂 [Scraper] スケジュール画面へ移動開始")
+            self.state = .navigatingToSchedule
+            let homeUrl = "https://kym22-web.ofc.kobe-u.ac.jp/campusweb/portal.do?page=main"
+            webView.load(URLRequest(url: URL(string: homeUrl)!))
         }
-    }
+        
+        private func navigateToSchedulePageFromPortal() {
+            // 修正ポイント：サイト上の表記（半角カタカナ）に合わせる
+            let targetMenu = "休補・ｽｹｼﾞｭｰﾙ"
+            
+            print("🔍 [Scraper] メニュー '\(targetMenu)' を探してクリックします")
+            executeClickByText(text: targetMenu, thenWait: 1.0) {
+                
+                print("🔍 [Scraper] サブメニュー 'スケジュール管理' を探してクリックします")
+                self.executeClickByText(text: "スケジュール管理", thenWait: 0) {
+                    print("⏳ [Scraper] リンククリック完了。画面遷移を待ちます...")
+                }
+            }
+        }
     
     private func processSchedule() {
         scrapeCurrentMonthSchedule { [weak self] _ in
