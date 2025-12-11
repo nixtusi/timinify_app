@@ -197,7 +197,7 @@ class TimetableFetcher: ObservableObject {
                 .collection("Q\(item.quarter ?? 1)")
 
             do {
-                try await path.document(item.id).setData(docData)
+                try await path.document(item.id).setData(docData, merge: true)
             } catch {
                 print("❌ Firestore 保存エラー: \(error.localizedDescription)")
             }
