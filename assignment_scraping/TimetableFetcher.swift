@@ -303,4 +303,6 @@ class TimetableFetcher: ObservableObject {
             print("⚠️ ローカルデータが見つかりません")
         }
     }
+    
+    
 }
