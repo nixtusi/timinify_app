@@ -10,22 +10,25 @@ import WidgetKit
 struct TaskListView: View {
     @StateObject private var fetcher = TaskFetcher()
     @Environment(\.scenePhase) var scenePhase
+    
+    @State private var now = Date()
+    private let ticker = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
+    
+    @AppStorage("taskOpenMode") private var taskOpenModeRaw: String = TaskOpenMode.external.rawValue
+    @State private var selectedTaskURL: URL? = nil
+    @State private var showInAppWeb: Bool = false
 
     // ✅ 緊急度に応じた色を判定する関数
-    private func urgencyColor(deadline: String) -> Color {
+    private func urgencyColor(deadline: String, now: Date) -> Color {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy/MM/dd HH:mm:ss"
         formatter.timeZone = TimeZone(identifier: "Asia/Tokyo")
         guard let date = formatter.date(from: deadline) else { return .green }
-        
-        let diff = date.timeIntervalSince(Date())
-        if diff < 24 * 60 * 60 { // 24時間以内 (または期限切れ)
-            return .red
-        } else if diff < 3 * 24 * 60 * 60 { // 3日以内
-            return .yellow
-        } else {
-            return .green // それ以上
-        }
+
+        let diff = date.timeIntervalSince(now)
+        if diff < 24 * 60 * 60 { return .red }
+        else if diff < 3 * 24 * 60 * 60 { return .yellow }
+        else { return .green }
     }
 
     var body: some View {
@@ -96,7 +99,7 @@ struct TaskListView: View {
                             }
                             
                             // ✅ 自動更新停止の注意書き
-                            Text("※自動更新は行われません。ボタンを押して更新してください。")
+                            Text("※自動更新は行われません。ボタンorスワイプで更新してください。")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
@@ -122,11 +125,17 @@ struct TaskListView: View {
                         ForEach(fetcher.tasks) { beefTask in
                             TaskCardView(
                                 task: beefTask,
-                                color: urgencyColor(deadline: beefTask.deadline)
+                                color: urgencyColor(deadline: beefTask.deadline, now: now)
                             )
                             .onTapGesture {
-                                if let url = URL(string: beefTask.url) {
+                                guard let url = URL(string: beefTask.url) else { return }
+
+                                let mode = TaskOpenMode(rawValue: taskOpenModeRaw) ?? .external
+                                if mode == .external {
                                     UIApplication.shared.open(url)
+                                } else {
+                                    selectedTaskURL = url
+                                    showInAppWeb = true
                                 }
                             }
                         }
@@ -140,11 +149,13 @@ struct TaskListView: View {
         }
         .onAppear {
             // fetcher.fetchTasksFromAPI() // ✅ コメントアウト: 自動取得停止
+            now = Date()
             fetcher.loadSavedTasks() // 保存データのロードのみ
             fetcher.checkDailyLimit() // 回数制限のチェック
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
+                now = Date()
                 // fetcher.fetchTasksFromAPI() // ✅ コメントアウト: 自動取得停止
                 fetcher.checkDailyLimit() // 日付変更チェック
                 WidgetCenter.shared.reloadAllTimelines()
@@ -162,8 +173,15 @@ struct TaskListView: View {
                 dismissButton: .default(Text("OK"))
             )
         }
+        .onReceive(ticker) { now = $0 }
+        .sheet(isPresented: $showInAppWeb) {
+            if let url = selectedTaskURL {
+                TaskAutoLoginWebView(taskURL: url)
+            }
+        }
     }
 }
+
 
 // ✅ デザインを整えたカードView（別構造体にしてスッキリさせる）
 struct TaskCardView: View {

@@ -15,7 +15,7 @@ enum SearchScope: String, CaseIterable, Identifiable {
     case `class` = "授業"
     //case account = "アカウント"
     case map = "地図"
-    case circle = "サークル"
+    //case circle = "サークル"
     
     var id: String { self.rawValue }
 }

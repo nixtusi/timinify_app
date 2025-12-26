@@ -1,15 +1,17 @@
 {
   "images" : [
     {
-      "filename" : "アイコンαなし.png",
+      "filename" : "Frame_1.jpg",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
+      "filename" : "Frame_1 1.jpg",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
+      "filename" : "Frame_1 2.jpg",
       "idiom" : "universal",
       "scale" : "3x"
     }

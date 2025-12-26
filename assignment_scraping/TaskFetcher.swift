@@ -53,7 +53,7 @@ class TaskFetcher: ObservableObject {
         if specialStudentNumbers.contains(currentStudentNumber) {
             return 50 // 特定の人は50回
         } else {
-            return 10 // 通常は10回
+            return 20 // 通常は10回
         }
     }
     

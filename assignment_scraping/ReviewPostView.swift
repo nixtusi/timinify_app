@@ -130,7 +130,7 @@ struct ReviewPostView: View {
                         if isPosting {
                             ProgressView() // 処理中はグルグルを表示
                         } else {
-                            Text("投稿")
+                            Text("投稿する")
                                 .bold()
                         }
                     }

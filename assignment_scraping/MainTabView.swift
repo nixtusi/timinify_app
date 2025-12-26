@@ -17,6 +17,8 @@ struct MainTabView: View {
     @State private var timetablePath = NavigationPath()
     @State private var taskPath = NavigationPath()
     @State private var settingsPath = NavigationPath()
+    
+    @State private var taskRefreshToken = UUID()
 
     enum Tab: CaseIterable { // CaseIterableを追加
         case timetable, task, search, settings
@@ -41,19 +43,12 @@ struct MainTabView: View {
     }
 
     var body: some View {
-        // 従来のTabViewをZStackに置き換え
-        ZStack(alignment: .bottom) {
-            
-            // 1. コンテンツ領域
-            contentView
-                // Bottom Bar分のマージンを確保
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            // 2. カスタムタブバー
-            customTabBar
-        }
-        // タブの選択色を最上位で設定
-        .accentColor(Color(hex: "#4B3F96"))
+        contentView
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                customTabBar
+            }
+            .ignoresSafeArea(.keyboard, edges: .bottom) // ←キーボードでタブバーが上がるのを止める
+            .accentColor(Color(hex: "#4B3F96"))
     }
     
     // MARK: - コンテンツビュー
@@ -71,6 +66,7 @@ struct MainTabView: View {
         case .task:
             NavigationStack(path: $taskPath) {
                 TaskListView()
+                    .id(taskRefreshToken)
                     .navigationTitle("課題")
             }
             .onChange(of: selection) { _, newValue in
@@ -96,12 +92,12 @@ struct MainTabView: View {
         HStack {
             ForEach(Tab.allCases, id: \.self) { tab in
                 Button {
-                    // タップで選択タブを変更
-                    if selection == tab {
-                        // 同じタブがタップされたらルートに戻る (既存のTabViewと同じ動作)
-                        resetNavigationPath(for: tab)
-                    }
+                    if selection == tab { resetNavigationPath(for: tab) }
                     selection = tab
+                    
+                    if tab == .task {
+                        taskRefreshToken = UUID()   // ← 課題タブに来た瞬間に強制リフレッシュ
+                    }
                 } label: {
                     VStack(spacing: 4) {
                         Image(systemName: tab.icon)
@@ -111,16 +107,13 @@ struct MainTabView: View {
                     }
                     .frame(maxWidth: .infinity)
                 }
-                // 選択状態に応じて色を変更
                 .foregroundColor(selection == tab ? Color(hex: "#4B3F96") : Color(.systemGray))
             }
         }
-        .frame(height: 49) // 標準的なタブバーの高さ
+        .frame(height: 49)
         .padding(.top, 8)
-        // 👇 修正: セーフエリアのパディングから 12pt を引いて、さらにタブバーを画面下端に食い込ませます。
-        .padding(.bottom, (UIApplication.shared.windows.first?.safeAreaInsets.bottom ?? 0) - 40)
-        .background(Color(.systemGray6).ignoresSafeArea(edges: .bottom)) // 常に不透明な背景
-        .shadow(color: .black.opacity(0.08), radius: 0.5, x: 0, y: -0.5) // わずかな上部影
+        .background(Color(.systemGray6))
+        .shadow(color: .black.opacity(0.08), radius: 0.5, x: 0, y: -0.5)
     }
     
     // MARK: - ユーティリティ
@@ -128,7 +121,9 @@ struct MainTabView: View {
         // 同じタブを再タップしたときのルートリセット処理
         switch tab {
         case .timetable: timetablePath = NavigationPath()
-        case .task: taskPath = NavigationPath()
+        case .task:
+            taskPath = NavigationPath()
+            taskRefreshToken = UUID() //課題タブ再タップでルート戻る時も更新
         case .settings: settingsPath = NavigationPath()
         case .search: break // SearchはStack管理外のため何もしない
         }

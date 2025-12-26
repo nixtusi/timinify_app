@@ -10,6 +10,27 @@ import FirebaseAuth
 import FirebaseFirestore
 import WidgetKit
 
+enum PortalKind: String {
+    case beef
+    case uribo
+
+    var title: String {
+        switch self {
+        case .beef: return "Beef+"
+        case .uribo: return "うりぼーネット"
+        }
+    }
+
+    var destinationURL: URL {
+        switch self {
+        case .beef:
+            return URL(string: "https://beefplus.center.kobe-u.ac.jp/lms/timetable")!
+        case .uribo:
+            return URL(string: "https://kym22-web.ofc.kobe-u.ac.jp/campusweb/portal.do?page=main")!
+        }
+    }
+}
+
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var fetcher = TimetableFetcher()
@@ -32,17 +53,34 @@ struct SettingsView: View {
     @State private var verifyResendTimer: Timer?            // 変更: タイマー
     @State private var resetResendRemaining = 0             // 変更: パスワードリセットクールダウン（秒）
     @State private var resetResendTimer: Timer?             // 変更: タイマー
+    
+    @AppStorage("taskOpenMode") private var taskOpenModeRaw: String = TaskOpenMode.external.rawValue
+    
+    @State private var showPortalWeb = false
+    @State private var selectedPortal: PortalKind = .beef
+
+    private let betaInviteURL = URL(string: "https://testflight.apple.com/join/Rus2ffhk")!
 
     private var studentNumber: String {
         let email = Auth.auth().currentUser?.email ?? ""
         return email.replacingOccurrences(of: "@stu.kobe-u.ac.jp", with: "")
     }
+    
     private var email: String {
         Auth.auth().currentUser?.email ?? ""
     }
+    
+    private var taskOpenMode: Binding<TaskOpenMode> {
+        Binding(
+            get: { TaskOpenMode(rawValue: taskOpenModeRaw) ?? .external },
+            set: { taskOpenModeRaw = $0.rawValue }
+        )
+    }
 
-    // 変更: メール確認済みを都度反映
-    @State private var isVerified: Bool = false             // 変更: 確認状態キャッシュ
+    // 変更: 確認状態キャッシュ（初期表示のチラつき防止のため Optional）
+    @State private var isVerified: Bool? = Auth.auth().currentUser?.isEmailVerified
+    
+    
 
     var body: some View {
         ZStack {
@@ -100,7 +138,7 @@ struct SettingsView: View {
 
                         // 変更: 確認済みかどうかに関わらず、状態表示ラベルは削除
                         // 未確認の場合のみ「確認メール再送」ボタンを表示
-                        if !isVerified {
+                        if isVerified == false {
                             HStack {
                                 Spacer()
                                 Button {
@@ -119,6 +157,61 @@ struct SettingsView: View {
                         }
                     }
                 }
+
+                Section(
+                    header: Text("友達を招待する"),
+                    footer: Text("Uni Time(beta版)を友達に紹介できます。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                ) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ShareLink(
+                            item: betaInviteURL,
+                            subject: Text("Uni Time(beta版)への招待リンク"),
+                            message: Text(
+                                "Uni Timeのbeta版に参加しませんか？\nTestFlight をインストールして、以下のリンクから参加できます：\n\(betaInviteURL.absoluteString)\n\n※ベータ版のため不具合が出ることがあります。フィードバックはアプリ内の『お問い合わせ』からお願いします。"
+                            )
+                        ) {
+                            Label("招待リンクを共有", systemImage: "square.and.arrow.up")
+                                .font(.body.weight(.semibold))
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                
+                Section(header: Text("大学サイト")) {
+                   Button("Beef+") {
+                       selectedPortal = .beef
+                       showPortalWeb = true
+                   }
+
+                   Button("うりぼーネット") {
+                       selectedPortal = .uribo
+                       showPortalWeb = true
+                   }
+               }
+                
+                Section(
+                    header: Text("課題リンク"),
+                    footer: Text("アプリ内を選択するとパスワード入力不要で課題ページを開けます。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                ) {
+                    Picker("開き方", selection: taskOpenMode) {
+                        ForEach(TaskOpenMode.allCases, id: \.self) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                
+//                Button("アプリ内ログインをリセット") {
+//                    WKWebsiteDataStore.default().removeData(
+//                        ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(),
+//                        modifiedSince: Date(timeIntervalSince1970: 0)
+//                    ) {}
+//                }
+//                .foregroundColor(.red)
 
                 Section(header: Text("その他")) {
                     NavigationLink(destination: DataUpdateView()) {
@@ -191,6 +284,8 @@ struct SettingsView: View {
         }
         .onAppear {
             loadSavedBarcodeImage()
+            // 先にキャッシュ値で反映（画面遷移直後のチラつき防止）
+            isVerified = Auth.auth().currentUser?.isEmailVerified
             refreshVerificationState() // 変更: 画面表示時に確認状態を更新
         }
         .alert("パスワード再設定", isPresented: $showingResetAlert, presenting: resetMessage) { _ in
@@ -209,14 +304,19 @@ struct SettingsView: View {
             resetResendTimer?.invalidate()
             resetResendTimer = nil
         }
+        .sheet(isPresented: $showPortalWeb) {
+            PortalAutoLoginWebViewScreen(
+                portal: selectedPortal,
+                destinationURL: selectedPortal.destinationURL
+            )
+        }
     }
 
     // MARK: - メール確認（再送）
 
-    // 変更: 確認状態の即時更新
     private func refreshVerificationState() {
         Auth.auth().currentUser?.reload { _ in
-            self.isVerified = Auth.auth().currentUser?.isEmailVerified ?? false
+            self.isVerified = Auth.auth().currentUser?.isEmailVerified
         }
     }
 
@@ -480,4 +580,5 @@ struct SettingsView: View {
         deleting = false
         deleteStep = nil
     }
+    
 }
