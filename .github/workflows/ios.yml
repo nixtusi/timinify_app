@@ -1,0 +1,36 @@
+name: iOS Build
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve Packages (App)
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project assignment_scraping.xcodeproj \
+            -scheme assignment_scraping
+
+      - name: Build App (iOS Simulator)
+        run: |
+          xcodebuild build \
+            -project assignment_scraping.xcodeproj \
+            -scheme assignment_scraping \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,name=iPhone 17,OS=latest"
+
+      - name: Build Widget Extension (iOS Simulator)
+        run: |
+          xcodebuild build \
+            -project assignment_scraping.xcodeproj \
+            -scheme AssignmentWidgetExtension \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,name=iPhone 17,OS=latest"
