@@ -6,12 +6,14 @@
 //
 
 import SwiftUI
+import Foundation
 
 struct MainTabView: View {
     @EnvironmentObject var appState: AppState
 
     // ✅ 標準TabViewの選択状態
     @State private var selection: Tab = .timetable
+    @State private var pendingTaskURL: URL? = nil
 
     // ✅ 各タブのNavigationStack用パス（今の設計をそのまま活かす）
     @State private var timetablePath = NavigationPath()
@@ -57,7 +59,7 @@ struct MainTabView: View {
 
             // ---- 課題 ----
             NavigationStack(path: $taskPath) {
-                TaskListView()
+                TaskListView(pendingTaskURL: $pendingTaskURL)
                     .id(taskRefreshToken) // ✅ タブを開くたびリフレッシュしたい用途
                     .navigationTitle("課題")
                     .navigationBarTitleDisplayMode(.inline)
@@ -109,5 +111,45 @@ struct MainTabView: View {
                 searchPath = NavigationPath()
             }
         }
+        .onAppear {
+            guard let url = appState.pendingDeepLink else { return }
+            handleDeepLink(url)
+            appState.pendingDeepLink = nil
+        }
+        .onChange(of: appState.pendingDeepLink) { _, newValue in
+            guard let url = newValue else { return }
+            handleDeepLink(url)
+            appState.pendingDeepLink = nil
+        }
+        .onOpenURL(perform: handleDeepLink)
+    }
+
+    private func handleDeepLink(_ url: URL) {
+        guard url.scheme == "beefapp" else { return }
+
+        switch url.host {
+        case "timetable":
+            selection = .timetable
+        case "task":
+            selection = .task
+            taskRefreshToken = UUID()
+            pendingTaskURL = taskURL(from: url)
+        case "search":
+            selection = .search
+        case "settings":
+            selection = .settings
+        default:
+            break
+        }
+    }
+
+    private func taskURL(from url: URL) -> URL? {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let value = components.queryItems?.first(where: { $0.name == "url" })?.value else {
+            return nil
+        }
+
+        let decoded = value.removingPercentEncoding ?? value
+        return URL(string: decoded)
     }
 }

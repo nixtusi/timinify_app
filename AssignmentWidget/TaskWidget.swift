@@ -17,6 +17,6 @@ struct TaskWidget: Widget {
         }
         .configurationDisplayName("課題一覧")
         .description("次に提出するべき課題を表示します。")
-        .supportedFamilies([.systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }

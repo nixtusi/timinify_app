@@ -19,16 +19,16 @@ final class TimetableLocalStore: ObservableObject {
     @Published var items: [TimetableItem] = []
     @Published var errorMessage: String?
 
-    // 年度+Qごとの保存キー（TimetableFetcher と揃える）
+    // ローカル保存キー（TimetableFetcher と揃える）
     private func localKey(year: Int, quarter: Int) -> String {
-        "cachedTimetableItems_\(year)_Q\(quarter)"
+        "cachedTimetableItems"
     }
 
     // App Group（Widget共有）
     private enum WGKeys {
         static let appGroup  = "group.com.yuta.beefapp"   // ← あなたの App Group ID
         static let storeKey  = "widgetTimetableToday"
-        static let widgetKind = "TimimetableWidgetKind"   // ← Widget 側の kind と一致させる
+        static let widgetKind = "TimetableWidgetKind"   // ← Widget 側の kind と一致させる
     }
 
     // ウィジェットへ渡す軽量ペイロード（Widget 側の SharedLecture と互換）
@@ -41,6 +41,7 @@ final class TimetableLocalStore: ObservableObject {
         let period: Int
         let startTime: String
         let endTime: String
+        let colorHex: String?
     }
 
     // MARK: - 公開API
@@ -52,7 +53,7 @@ final class TimetableLocalStore: ObservableObject {
 
         guard let data = UserDefaults.standard.data(forKey: key) else {
             self.items = []
-            self.errorMessage = "ローカルの時間割が見つかりません (\(year) Q\(quarter))"
+            self.errorMessage = "ローカルの時間割が見つかりません"
             print("⚠️ ローカルデータなし (\(key))")
             return
         }
@@ -87,7 +88,8 @@ final class TimetableLocalStore: ObservableObject {
                 teacher: $0.teacher,
                 period: $0.period,
                 startTime: Self.periodToStart($0.period),
-                endTime: Self.periodToEnd($0.period)
+                endTime: Self.periodToEnd($0.period),
+                colorHex: $0.color
             )
         }
 

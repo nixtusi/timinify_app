@@ -28,6 +28,7 @@ struct SharedLecture: Codable, Identifiable {
     let period: Int
     let startTime: String
     let endTime: String
+    let colorHex: String?
 }
 
 // MARK: - Provider
@@ -35,23 +36,23 @@ struct SharedLecture: Codable, Identifiable {
 struct TimetableProvider: TimelineProvider {
 
     func placeholder(in context: Context) -> TimetableEntry {
-        TimetableEntry(date: Date(), lectures: sample(), nextLecture: sample().first)
+        TimetableEntry(date: Date(), lectures: sample(), nextLecture: sample().first, hasData: true)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (TimetableEntry) -> Void) {
         // プレビュー時のみサンプル、実機スナップショットは実データ
         if context.isPreview {
-            completion(TimetableEntry(date: Date(), lectures: sample(), nextLecture: sample().first))
+            completion(TimetableEntry(date: Date(), lectures: sample(), nextLecture: sample().first, hasData: true))
             return
         }
-        let lectures = loadLectures()
-        completion(TimetableEntry(date: Date(), lectures: lectures, nextLecture: findNextLecture(from: lectures)))
+        let result = loadLectures()
+        completion(TimetableEntry(date: Date(), lectures: result.lectures, nextLecture: findNextLecture(from: result.lectures), hasData: result.hasData))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<TimetableEntry>) -> Void) {
-        let lectures = loadLectures()
-        let next = findNextLecture(from: lectures)
-        let entry = TimetableEntry(date: Date(), lectures: lectures, nextLecture: next)
+        let result = loadLectures()
+        let next = findNextLecture(from: result.lectures)
+        let entry = TimetableEntry(date: Date(), lectures: result.lectures, nextLecture: next, hasData: result.hasData)
 
         // 次回更新タイミングを決める
         let refresh = nextRefreshDate(nextLecture: next)
@@ -61,16 +62,16 @@ struct TimetableProvider: TimelineProvider {
 
     // MARK: - 読み込み
 
-    private func loadLectures() -> [SharedLecture] {
+    private func loadLectures() -> (lectures: [SharedLecture], hasData: Bool) {
         guard
             let ud = UserDefaults(suiteName: WGKeys.appGroup),
-            let data = ud.data(forKey: WGKeys.storeKey),
-            let lectures = try? JSONDecoder().decode([SharedLecture].self, from: data)
+            let data = ud.data(forKey: WGKeys.storeKey)
         else {
             // 実機では空配列。初回未設定で「空表示」とする
-            return []
+            return ([], false)
         }
-        return lectures.sorted { $0.period < $1.period }
+        let lectures = (try? JSONDecoder().decode([SharedLecture].self, from: data)) ?? []
+        return (lectures.sorted { $0.period < $1.period }, true)
     }
 
     // MARK: - 次の授業探索 / 更新時刻決定
@@ -117,11 +118,11 @@ struct TimetableProvider: TimelineProvider {
     // プレビュー用サンプル
     private func sample() -> [SharedLecture] {
         [
-            SharedLecture(code: "1G004", title: "線形代数A", room: "E201", teacher: "桔梗", period: 1, startTime: "08:50", endTime: "10:20"),
-            SharedLecture(code: "1B453", title: "プログラミング基礎", room: "情報実習室", teacher: "井上", period: 2, startTime: "10:40", endTime: "12:10"),
-            SharedLecture(code: "1X006", title: "アルゴリズム演習", room: "I302", teacher: "山本", period: 3, startTime: "13:10", endTime: "14:40"),
-            SharedLecture(code: "1T303", title: "確率統計", room: "S105", teacher: "佐藤", period: 4, startTime: "15:10", endTime: "16:40"),
-            SharedLecture(code: "1A101", title: "英語コミュニケーション", room: "L2", teacher: "Smith", period: 5, startTime: "17:00", endTime: "18:30")
+            SharedLecture(code: "1G004", title: "線形代数A", room: "E201", teacher: "桔梗", period: 1, startTime: "08:50", endTime: "10:20", colorHex: nil),
+            SharedLecture(code: "1B453", title: "プログラミング基礎", room: "情報実習室", teacher: "井上", period: 2, startTime: "10:40", endTime: "12:10", colorHex: nil),
+            SharedLecture(code: "1X006", title: "アルゴリズム演習", room: "I302", teacher: "山本", period: 3, startTime: "13:10", endTime: "14:40", colorHex: nil),
+            SharedLecture(code: "1T303", title: "確率統計", room: "S105", teacher: "佐藤", period: 4, startTime: "15:10", endTime: "16:40", colorHex: nil),
+            SharedLecture(code: "1A101", title: "英語コミュニケーション", room: "L2", teacher: "Smith", period: 5, startTime: "17:00", endTime: "18:30", colorHex: nil)
         ]
     }
 }
@@ -132,6 +133,7 @@ struct TimetableEntry: TimelineEntry {
     let date: Date
     let lectures: [SharedLecture]
     let nextLecture: SharedLecture?
+    let hasData: Bool
 }
 
 // MARK: - Widget
@@ -145,7 +147,7 @@ struct TimetableWidget: Widget {
         }
         .configurationDisplayName("時間割")
         .description("アプリが保存した“今日の時間割”を表示します。")
-        .supportedFamilies([.systemSmall, .systemMedium]) // Small/Medium対応
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge]) // Small/Medium/Large対応
     }
 }
 
@@ -157,12 +159,16 @@ struct TimetableWidgetView: View {
 
     var body: some View {
         Group {
-            if entry.lectures.isEmpty {
-                EmptyViewWidget()
+            if !entry.hasData {
+                EmptyViewWidget(hasData: false, message: "時間割が未設定")
+            } else if entry.nextLecture == nil {
+                EmptyViewWidget(hasData: true, message: "今日は授業がありません")
             } else {
                 switch family {
                 case .systemSmall:
                     SmallView(entry: entry)
+                case .systemLarge:
+                    LargeView(entry: entry)
                 default:
                     MediumView(entry: entry)
                 }
@@ -176,11 +182,14 @@ struct TimetableWidgetView: View {
 
 // 空状態表示（初回まだ publish されていない場合）
 private struct EmptyViewWidget: View {
+    let hasData: Bool
+    let message: String
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("時間割が未設定")
+            Text(message)
                 .font(.headline)
-            Text("アプリを開いて「時間割を更新」してください。")
+            Text(hasData ? "授業のある日には自動で表示されます。" : "アプリを開いて「時間割を更新」してください。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
@@ -219,19 +228,10 @@ private struct MediumView: View {
     let entry: TimetableEntry
     private let periods = [1,2,3,4,5]
 
-    // 色はコードハッシュで安定させる（色をペイロードに入れていないため）
-    private let palette: [Color] = [
-        Color(.systemBlue).opacity(0.15),
-        Color(.systemGreen).opacity(0.15),
-        Color(.systemOrange).opacity(0.15),
-        Color(.systemPurple).opacity(0.15),
-        Color(.systemPink).opacity(0.15)
-    ]
-
     private func colorFor(_ lec: SharedLecture?) -> Color {
         guard let lec else { return Color(.secondarySystemBackground) }
-        let h = abs(lec.code.hashValue)
-        return palette[h % palette.count]
+        let hex = (lec.colorHex?.isEmpty == false) ? lec.colorHex! : "#FF3B30"
+        return Color(hex: hex).opacity(0.18)
     }
 
     private func defaultTime(for period: Int) -> (start: String, end: String) {
@@ -295,5 +295,102 @@ private struct MediumView: View {
         f.locale = Locale(identifier: "ja_JP")
         f.dateFormat = "M/d(EEE)"
         return f.string(from: Date())
+    }
+}
+
+// Large：縦並びの時間割一覧
+private struct LargeView: View {
+    let entry: TimetableEntry
+    private let periods = [1,2,3,4,5]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(todayJP()).font(.headline)
+                Spacer()
+                if let n = entry.nextLecture {
+                    Text("次: \(n.startTime)").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
+            VStack(spacing: 6) {
+                ForEach(periods, id: \.self) { p in
+                    row(for: p)
+                }
+            }
+        }
+        .padding(12)
+    }
+
+    @ViewBuilder
+    private func row(for period: Int) -> some View {
+        let lec = entry.lectures.first { $0.period == period }
+        HStack(alignment: .top, spacing: 8) {
+            Text("\(period)限")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 36, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 2) {
+                if let lec {
+                    Text(lec.title)
+                        .font(.subheadline)
+                        .lineLimit(1)
+                    if let teacher = lec.teacher, !teacher.isEmpty {
+                        Text(teacher)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                } else {
+                    Text("空き")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(8)
+        .background(tileColor(for: lec), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func tileColor(for lec: SharedLecture?) -> Color {
+        guard let lec else { return Color(.secondarySystemBackground) }
+        let hex = (lec.colorHex?.isEmpty == false) ? lec.colorHex! : "#FF3B30"
+        return Color(hex: hex).opacity(0.18)
+    }
+
+    private func todayJP() -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "ja_JP")
+        f.dateFormat = "M/d(EEE)"
+        return f.string(from: Date())
+    }
+}
+
+private extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3:
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6:
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8:
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (1, 1, 1, 0)
+        }
+
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue: Double(b) / 255,
+            opacity: Double(a) / 255
+        )
     }
 }
