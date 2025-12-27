@@ -13,10 +13,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Xcode 16.1.1
+      - name: Setup Xcode 26.1.1 (Build 17B100)
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: "16.1.1"
+          xcode-version: "26.1.1"
 
       - name: Resolve Packages (App)
         run: |
