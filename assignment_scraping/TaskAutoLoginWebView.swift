@@ -8,18 +8,18 @@
 import SwiftUI
 import WebKit
 
-// Cookie/セッション共有
-enum WebKitShared {
-    static let processPool = WKProcessPool()
-}
-
 struct TaskAutoLoginWebView: View {
     let taskURL: URL
     @Environment(\.dismiss) private var dismiss
+    @State private var showLoadError = false
+    @State private var loadErrorMessage = ""
 
     var body: some View {
         NavigationStack {
-            WebViewWrapper(taskURL: taskURL)
+            WebViewWrapper(taskURL: taskURL) { message in
+                loadErrorMessage = message
+                showLoadError = true
+            }
                 .navigationTitle("BEEF+")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -32,6 +32,11 @@ struct TaskAutoLoginWebView: View {
 //                        }
 //                    }
                 }
+                .alert("読み込みに失敗しました", isPresented: $showLoadError) {
+                    Button("閉じる", role: .cancel) {}
+                } message: {
+                    Text(loadErrorMessage)
+                }
         }
     }
 }
@@ -42,12 +47,11 @@ extension Notification.Name {
 
 private struct WebViewWrapper: UIViewRepresentable {
     let taskURL: URL
+    let onLoadError: (String) -> Void
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .default()
-        config.processPool = WebKitShared.processPool
-
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         context.coordinator.attach(webView: webView, taskURL: taskURL)
@@ -71,7 +75,7 @@ private struct WebViewWrapper: UIViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator()
+        Coordinator(onLoadError: onLoadError)
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate {
@@ -82,11 +86,19 @@ private struct WebViewWrapper: UIViewRepresentable {
         private var didTrySaml = false
         private var didInjectLogin = false
         private var injectRetryCount = 0
+        private var navigationRetryCount = 0
+        private let maxNavigationRetries = 5
+        private var didNotifyLoadError = false
 
         private let beefHost = "beefplus.center.kobe-u.ac.jp"
         private let knossosHost = "knossos.center.kobe-u.ac.jp"
 
         private var reloadObserver: NSObjectProtocol?
+        private let onLoadError: (String) -> Void
+
+        init(onLoadError: @escaping (String) -> Void) {
+            self.onLoadError = onLoadError
+        }
 
         deinit {
             if let obs = reloadObserver { NotificationCenter.default.removeObserver(obs) }
@@ -101,6 +113,8 @@ private struct WebViewWrapper: UIViewRepresentable {
                 didTrySaml = false
                 didInjectLogin = false
                 injectRetryCount = 0
+                navigationRetryCount = 0
+                didNotifyLoadError = false
             }
         }
 
@@ -132,6 +146,8 @@ private struct WebViewWrapper: UIViewRepresentable {
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             guard let url = webView.url else { return }
             let host = url.host ?? ""
+            navigationRetryCount = 0
+            didNotifyLoadError = false
 
             // 1) BEEF+ loginに落ちたらSAMLへ
             if host == beefHost, url.path.hasPrefix("/login"), !didTrySaml {
@@ -158,6 +174,15 @@ private struct WebViewWrapper: UIViewRepresentable {
                 return
             }
 
+            if navigationRetryCount >= maxNavigationRetries {
+                if !didNotifyLoadError {
+                    didNotifyLoadError = true
+                    onLoadError("ページを開けませんでした。通信環境を確認して再度お試しください。")
+                }
+                return
+            }
+
+            navigationRetryCount += 1
             // “白画面固定”回避：少し待って再要求
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
                 guard let self, let url = self.lastRequestedURL ?? self.currentTaskURL else { return }

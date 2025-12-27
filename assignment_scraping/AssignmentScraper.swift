@@ -50,7 +50,9 @@ class AssignmentScraper: NSObject, WKNavigationDelegate {
         // タイムアウト設定 (45秒)
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 45.0, repeats: false) { [weak self] _ in
-            self?.finish(with: .failure(ScrapeError.timeout))
+            Task { @MainActor in
+                self?.finish(with: .failure(ScrapeError.timeout))
+            }
         }
         
         // 処理開始
@@ -179,13 +181,17 @@ class AssignmentScraper: NSObject, WKNavigationDelegate {
             
             if let error = error {
                 print("❌ JS Parsing Error: \(error)")
-                self.finish(with: .failure(ScrapeError.parsingFailed))
+                Task { @MainActor in
+                    self.finish(with: .failure(ScrapeError.parsingFailed))
+                }
                 return
             }
             
             guard let array = result as? [[String: String]] else {
                 print("❌ Invalid Data Format: \(String(describing: result))")
-                self.finish(with: .failure(ScrapeError.parsingFailed))
+                Task { @MainActor in
+                    self.finish(with: .failure(ScrapeError.parsingFailed))
+                }
                 return
             }
             
@@ -207,7 +213,9 @@ class AssignmentScraper: NSObject, WKNavigationDelegate {
                 )
             }
             
-            self.finish(with: .success(tasks))
+            Task { @MainActor in
+                self.finish(with: .success(tasks))
+            }
         }
     }
     
