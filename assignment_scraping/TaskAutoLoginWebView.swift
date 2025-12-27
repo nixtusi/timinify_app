@@ -8,6 +8,11 @@
 import SwiftUI
 import WebKit
 
+// Cookie/セッション共有
+enum WebKitShared {
+    static let processPool = WKProcessPool()
+}
+
 struct TaskAutoLoginWebView: View {
     let taskURL: URL
     @Environment(\.dismiss) private var dismiss
@@ -21,9 +26,18 @@ struct TaskAutoLoginWebView: View {
                     ToolbarItem(placement: .topBarLeading) {
                         Button("閉じる") { dismiss() }
                     }
+//                    ToolbarItem(placement: .topBarTrailing) {
+//                        Button("再読み込み") {
+//                            NotificationCenter.default.post(name: .taskWebViewReload, object: nil)
+//                        }
+//                    }
                 }
         }
     }
+}
+
+extension Notification.Name {
+    static let taskWebViewReload = Notification.Name("taskWebViewReload")
 }
 
 private struct WebViewWrapper: UIViewRepresentable {
@@ -31,20 +45,30 @@ private struct WebViewWrapper: UIViewRepresentable {
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
-        // Cookie保持したいので default() を使う（消さない限り残る）
         config.websiteDataStore = .default()
+        config.processPool = WebKitShared.processPool
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
+        context.coordinator.attach(webView: webView, taskURL: taskURL)
 
-        context.coordinator.taskURL = taskURL
-        context.coordinator.webView = webView
+        // 初回ロード
+        context.coordinator.request(taskURL)
 
-        webView.load(URLRequest(url: taskURL))
+        // 手動リロード
+        context.coordinator.observeReload()
+
         return webView
     }
 
-    func updateUIView(_ uiView: WKWebView, context: Context) {}
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        context.coordinator.attach(webView: webView, taskURL: taskURL)
+
+        // taskURL が変わったら必ずロード（同じURLでも毎回開くなら下の条件外してOK）
+        if context.coordinator.currentTaskURL != taskURL {
+            context.coordinator.request(taskURL)
+        }
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -52,74 +76,146 @@ private struct WebViewWrapper: UIViewRepresentable {
 
     final class Coordinator: NSObject, WKNavigationDelegate {
         weak var webView: WKWebView?
-        var taskURL: URL?
+        var currentTaskURL: URL?
 
+        private var lastRequestedURL: URL?
         private var didTrySaml = false
         private var didInjectLogin = false
+        private var injectRetryCount = 0
 
-        // ★ ここは “自動ログインを注入して良いドメイン” を固定（超重要）
         private let beefHost = "beefplus.center.kobe-u.ac.jp"
         private let knossosHost = "knossos.center.kobe-u.ac.jp"
+
+        private var reloadObserver: NSObjectProtocol?
+
+        deinit {
+            if let obs = reloadObserver { NotificationCenter.default.removeObserver(obs) }
+        }
+
+        func attach(webView: WKWebView, taskURL: URL) {
+            self.webView = webView
+
+            if currentTaskURL != taskURL {
+                currentTaskURL = taskURL
+                // URLが変わったらフラグも初期化
+                didTrySaml = false
+                didInjectLogin = false
+                injectRetryCount = 0
+            }
+        }
+
+        func observeReload() {
+            guard reloadObserver == nil else { return }
+            reloadObserver = NotificationCenter.default.addObserver(
+                forName: .taskWebViewReload,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                guard let self else { return }
+                if let url = self.lastRequestedURL ?? self.currentTaskURL {
+                    self.request(url)
+                }
+            }
+        }
+
+        func request(_ url: URL) {
+            guard let webView else { return }
+            lastRequestedURL = url
+
+            var req = URLRequest(url: url)
+            req.cachePolicy = .reloadIgnoringLocalCacheData
+            webView.load(req)
+        }
+
+        // MARK: - WKNavigationDelegate
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             guard let url = webView.url else { return }
             let host = url.host ?? ""
 
-            // 1) まずBEEF+側で login に落ちたら SAML に直行
-            if host == beefHost, url.path.hasPrefix("/login") {
-                // Pythonと同じ「SAMLログインへ直行」発想
-                if !didTrySaml {
-                    didTrySaml = true
-                    let saml = URL(string: "https://\(beefHost)/saml/login?disco=true")!
-                    webView.load(URLRequest(url: saml))
-                }
+            // 1) BEEF+ loginに落ちたらSAMLへ
+            if host == beefHost, url.path.hasPrefix("/login"), !didTrySaml {
+                didTrySaml = true
+                let saml = URL(string: "https://\(beefHost)/saml/login?disco=true")!
+                request(saml)
                 return
             }
 
-            // 2) KNOSSOS のログインフォームが出たら JS でID/PW入力→submit
+            // 2) KNOSSOS でログイン注入
             if host == knossosHost,
                url.absoluteString.contains("/login-actions/authenticate"),
                !didInjectLogin {
+                tryInjectLogin(webView)
+            }
+        }
 
-                let id = LoginCredentials.studentNumber
-                let pw = LoginCredentials.password
-                guard !id.isEmpty, !pw.isEmpty else { return }
+        func webView(_ webView: WKWebView,
+                     didFailProvisionalNavigation navigation: WKNavigation!,
+                     withError error: Error) {
+            let ns = error as NSError
+            if ns.domain == NSURLErrorDomain && ns.code == -999 {
+                // loadが重なったキャンセル。よくあるので放置でOK
+                return
+            }
 
-                didInjectLogin = true
+            // “白画面固定”回避：少し待って再要求
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                guard let self, let url = self.lastRequestedURL ?? self.currentTaskURL else { return }
+                self.request(url)
+            }
+        }
 
-                // JSで #username #password に入力してフォーム送信
-                let js = """
-                (function() {
-                    const u = document.querySelector('#username');
-                    const p = document.querySelector('#password');
-                    const btn = document.querySelector('#kc-login');
-                    if (!u || !p || !btn) { return 'no_form'; }
-                    u.value = \(jsonStringLiteral(id));
-                    p.value = \(jsonStringLiteral(pw));
-                    btn.click();
-                    return 'submitted';
-                })();
-                """
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            // これが「真っ白のまま進まない」の主犯になりがち
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                guard let self, let url = self.lastRequestedURL ?? self.currentTaskURL else { return }
+                self.request(url)
+            }
+        }
 
-                webView.evaluateJavaScript(js) { [weak self] result, error in
-                    if error != nil { return }
-                    // 送信後、BEEF+側へ戻ったら課題URLへ戻す（cookieが付く）
-                    // ※戻り検知は didCommit / decidePolicy でもOK。ここでは単純に少し待ってからリロードでも可
+        private func tryInjectLogin(_ webView: WKWebView) {
+            if injectRetryCount >= 8 { return }
+            injectRetryCount += 1
+
+            let id = LoginCredentials.studentNumber
+            let pw = LoginCredentials.password
+            guard !id.isEmpty, !pw.isEmpty else { return }
+
+            let js = """
+            (function() {
+                const u = document.querySelector('#username');
+                const p = document.querySelector('#password');
+                const btn = document.querySelector('#kc-login');
+                if (!u || !p || !btn) { return 'no_form'; }
+                u.value = \(jsonStringLiteral(id));
+                p.value = \(jsonStringLiteral(pw));
+                btn.click();
+                return 'submitted';
+            })();
+            """
+
+            webView.evaluateJavaScript(js) { [weak self] result, _ in
+                guard let self else { return }
+                let r = result as? String ?? ""
+
+                if r == "submitted" {
+                    self.didInjectLogin = true
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                        if let taskURL = self?.taskURL {
-                            webView.load(URLRequest(url: taskURL))
+                        if let taskURL = self.currentTaskURL {
+                            self.request(taskURL)
                         }
                     }
+                } else {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        self.tryInjectLogin(webView)
+                    }
                 }
-                return
             }
         }
     }
 }
 
-// JSに安全に文字列を渡すための補助
 private func jsonStringLiteral(_ s: String) -> String {
-    // "..." のJSON文字列として埋め込む（改行や " を壊さない）
     if let data = try? JSONEncoder().encode(s),
        let json = String(data: data, encoding: .utf8) {
         return json
