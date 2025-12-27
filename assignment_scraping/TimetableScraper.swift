@@ -88,7 +88,9 @@ class TimetableScraper: NSObject, WKNavigationDelegate {
         // 全体のタイムアウトを120秒に設定
         timeoutTimer = Timer.scheduledTimer(withTimeInterval: 120.0, repeats: false) { [weak self] _ in
             print("⏰ [Scraper] タイムアウト（全体）")
-            self?.finish(with: .failure(ScraperError.timeout))
+            Task { @MainActor in
+                self?.finish(with: .failure(ScraperError.timeout))
+            }
         }
         
         let url = URL(string: "https://kym22-web.ofc.kobe-u.ac.jp/campusweb")!
@@ -160,9 +162,11 @@ class TimetableScraper: NSObject, WKNavigationDelegate {
             return 'waiting';
         })();
         """
-        webView.evaluateJavaScript(js) { res, _ in
+        webView.evaluateJavaScript(js) { [weak self] res, _ in
             if let str = res as? String, str == "auth_error" {
-                self.finish(with: .failure(ScraperError.loginFailed("ID/Pass間違い")))
+                Task { @MainActor in
+                    self?.finish(with: .failure(ScraperError.loginFailed("ID/Pass間違い")))
+                }
             }
         }
     }
@@ -403,7 +407,7 @@ class TimetableScraper: NSObject, WKNavigationDelegate {
         let start = Date()
         waitTimer?.invalidate()
         
-        waitTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] timer in
+        waitTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             let js = """
             (function() {
                 var target = '\(cleanTarget)';
@@ -415,12 +419,14 @@ class TimetableScraper: NSObject, WKNavigationDelegate {
                 return false;
             })();
             """
-            self?.webView.evaluateJavaScript(js) { res, _ in
-                if let exists = res as? Bool, exists {
-                    timer.invalidate()
+            Task { @MainActor in
+                guard let self else { return }
+                let exists = (try? await self.webView.evaluateJavaScript(js)) as? Bool ?? false
+                if exists {
+                    self.waitTimer?.invalidate()
                     completion(true)
                 } else if Date().timeIntervalSince(start) > timeout {
-                    timer.invalidate()
+                    self.waitTimer?.invalidate()
                     completion(false)
                 }
             }
@@ -431,14 +437,16 @@ class TimetableScraper: NSObject, WKNavigationDelegate {
         let start = Date()
         waitTimer?.invalidate()
         
-        waitTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] timer in
+        waitTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             let js = "document.querySelector('\(selector)') != null"
-            self?.webView.evaluateJavaScript(js) { res, _ in
-                if let exists = res as? Bool, exists {
-                    timer.invalidate()
+            Task { @MainActor in
+                guard let self else { return }
+                let exists = (try? await self.webView.evaluateJavaScript(js)) as? Bool ?? false
+                if exists {
+                    self.waitTimer?.invalidate()
                     completion(true)
                 } else if Date().timeIntervalSince(start) > 10.0 {
-                    timer.invalidate()
+                    self.waitTimer?.invalidate()
                     completion(false)
                 }
             }
