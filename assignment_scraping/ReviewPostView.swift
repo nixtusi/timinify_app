@@ -91,25 +91,14 @@ struct ReviewPostView: View {
                             .frame(height: 120)
                             .focused($commentFocused)
                     }
-
-                    // 投稿ボタン
-//                    Section {
-//                        Button {
-//                            print("📨 投稿ボタン tapped")
-//                            Task { await submitReview() }
-//                        } label: {
-//                            Text("口コミを投稿")
-//                                .frame(maxWidth: .infinity)
-//                                .frame(height: 48)
-//                        }
-//                        .buttonStyle(.borderedProminent)
-//                        .tint(Color(hex: "#4B3F96"))
-//                        .disabled(rating == 0 || easyScore == 0)
-//                        .listRowInsets(.init()) // 端まで広げて押しやすく
-//                    }
                 }
                 // ⬇︎ フォーム外タップでキーボードを閉じる（ボタンのタップを奪わない）
                 .scrollDismissesKeyboard(.interactively)
+                .simultaneousGesture(
+                    TapGesture().onEnded {
+                        commentFocused = false
+                    }
+                )
             }
             .navigationTitle("口コミ投稿")
             .navigationBarTitleDisplayMode(.inline)
@@ -137,12 +126,6 @@ struct ReviewPostView: View {
                     // 入力不備があるか、投稿処理中は無効化
                     .disabled(rating == 0 || easyScore == 0 || isPosting)
                 }
-                
-                // ⌨️ キーボード閉じるボタン
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("閉じる") { commentFocused = false }
-                }
             }
             .alert("送信できました", isPresented: $showSaveAlert) {
                 Button("OK") { dismiss() }
@@ -164,7 +147,10 @@ struct ReviewPostView: View {
             "attendanceFrequency": attendanceFrequency?.rawValue ?? "",
             "freeComment": freeComment,
             "createdAt": Timestamp(),
-            "student_id": studentId
+            "student_id": studentId,
+            "upCount": 0,
+            "downCount": 0,
+            "votes": [:]   // voterId -> 1 or -1 を入れるMap
         ]
 
         let db = Firestore.firestore()

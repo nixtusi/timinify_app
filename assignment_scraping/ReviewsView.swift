@@ -15,7 +15,10 @@ struct ReviewsView: View {
     let currentStudentID: String
 
     @State private var showPostSheet = false
-    @State private var expanded: Set<String> = []   // 展開中のレビューID
+    @State private var sort: ReviewSort = .high
+
+    @State private var deleteTarget: Review? = nil
+    @State private var showDeleteAlert = false
 
     var body: some View {
         ScrollView {
@@ -23,7 +26,7 @@ struct ReviewsView: View {
 
                 // 上：統計カード（タップなし）
                 ReviewStatsCard(viewModel: viewModel)
-
+                
                 // 口コミを追加
                 if !currentStudentID.isEmpty,
                    !viewModel.reviews.contains(where: { $0.student_id == currentStudentID }) {
@@ -46,17 +49,51 @@ struct ReviewsView: View {
                     }
                 }
 
+                // 並び順
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("並び順")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Picker("並び順", selection: $sort) {
+                        ForEach(ReviewSort.allCases) { s in
+                            Text(s.rawValue).tag(s)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                
+
                 // 全自由記述コメント（折りたたみ/展開）
                 LazyVStack(alignment: .leading, spacing: 12) {
-                    ForEach(viewModel.reviews.filter { !$0.freeComment.isEmpty }) { review in
-                        let isExpanded = expanded.contains(review.id)
-                        ReviewRow(review: review, lineLimit: isExpanded ? nil : 3)
-                            .contentShape(Rectangle()) // タップしやすく
-                            .onTapGesture {
-                                if isExpanded { expanded.remove(review.id) }
-                                else { expanded.insert(review.id) }
-                            }
-                            .padding(.vertical, 6)
+                    ForEach(viewModel.sortedReviews(sort).filter { !$0.freeComment.isEmpty }) { review in
+                        NavigationLink {
+                            ReviewDetailView(
+                                viewModel: viewModel,
+                                year: year,
+                                quarter: quarter.replacingOccurrences(of: "Q", with: ""),
+                                lectureCode: lectureCode,
+                                currentStudentID: currentStudentID,
+                                review: review
+                            )
+                        } label: {
+                            ReviewRow(review: review, lineLimit: 3)
+                                .reviewContextMenu(
+                                    review: review,
+                                    year: year,
+                                    quarter: quarter,
+                                    lectureCode: lectureCode,
+                                    currentStudentID: currentStudentID,
+                                    viewModel: viewModel,
+                                    onRequestDelete: {
+                                        deleteTarget = review
+                                        showDeleteAlert = true
+                                    }
+                                )
+                        }
+                        .buttonStyle(.plain)
+
                         Divider()
                     }
                 }
@@ -66,8 +103,29 @@ struct ReviewsView: View {
         .navigationTitle("口コミ")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            // 必要なら一覧画面で再取得
             await viewModel.fetchReviews(year: year, quarter: quarter, lectureCode: lectureCode)
+        }
+        .alert("口コミを削除しますか？",
+               isPresented: $showDeleteAlert,
+               presenting: deleteTarget) { target in
+            Button("削除", role: .destructive) {
+                Task {
+                    await viewModel.deleteReview(
+                        year: year,
+                        quarter: quarter,
+                        lectureCode: lectureCode,
+                        reviewId: target.id
+                    )
+                    // 削除後に最新化したいならここで再取得（任意）
+                    await viewModel.fetchReviews(year: year, quarter: quarter, lectureCode: lectureCode)
+                }
+                deleteTarget = nil
+            }
+            Button("キャンセル", role: .cancel) {
+                deleteTarget = nil
+            }
+        } message: { _ in
+            Text("この操作は取り消せません。")
         }
     }
 }

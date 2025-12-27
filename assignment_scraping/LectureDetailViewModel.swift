@@ -267,6 +267,109 @@ class LectureDetailViewModel: ObservableObject {
         for r in reviews { counts[r.attendanceFrequency, default: 0] += 1 }
         return counts
     }
+
 }
 
+//enum ReviewSort: String, CaseIterable, Identifiable {
+//    case high = "高評価"
+//    case low = "低評価"
+//    case newest = "最新"
+//    var id: String { rawValue }
+//}
 
+extension LectureDetailViewModel {
+    func sortedReviews(_ sort: ReviewSort) -> [Review] {
+        switch sort {
+        case .high:
+            return reviews.sorted {
+                if $0.helpfulScore != $1.helpfulScore { return $0.helpfulScore > $1.helpfulScore }
+                return $0.createdAt > $1.createdAt
+            }
+        case .low:
+            return reviews.sorted {
+                if $0.helpfulScore != $1.helpfulScore { return $0.helpfulScore < $1.helpfulScore }
+                return $0.createdAt > $1.createdAt
+            }
+        case .newest:
+            return reviews.sorted { $0.createdAt > $1.createdAt }
+        }
+    }
+
+    // 👍/👎（トランザクションで二重投票防止＆差分更新 + 同じボタン押下で解除）
+    func voteReview(
+        year: String,
+        quarter: String,
+        lectureCode: String,
+        reviewId: String,
+        voterId: String,
+        voteValue: Int
+    ) async {
+        let docRef = db.collection("class")
+            .document(year)
+            .collection("Q\(quarter)")
+            .document(lectureCode)
+            .collection("reviews")
+            .document(reviewId)
+
+        do {
+            _ = try await db.runTransaction { tx, errorPointer in
+                do {
+                    let snap = try tx.getDocument(docRef)
+                    let data = snap.data() ?? [:]
+
+                    var up = (data["upCount"] as? Int) ?? 0
+                    var down = (data["downCount"] as? Int) ?? 0
+                    var votes = (data["votes"] as? [String: Int]) ?? [:]
+
+                    let prev = votes[voterId] ?? 0
+
+                    // 同じボタン押したら解除（トグル）
+                    let next: Int = (prev == voteValue) ? 0 : voteValue
+
+                    // prev を消す
+                    if prev == 1 { up -= 1 }
+                    if prev == -1 { down -= 1 }
+
+                    // next を反映
+                    if next == 1 { up += 1 }
+                    if next == -1 { down += 1 }
+
+                    // votes map 更新
+                    if next == 0 {
+                        votes.removeValue(forKey: voterId)
+                    } else {
+                        votes[voterId] = next
+                    }
+
+                    tx.updateData([
+                        "upCount": max(0, up),
+                        "downCount": max(0, down),
+                        "votes": votes
+                    ], forDocument: docRef)
+
+                    return nil
+                } catch {
+                    errorPointer?.pointee = error as NSError
+                    return nil
+                }
+            }
+        } catch {
+            print("❌ voteReview error: \(error.localizedDescription)")
+        }
+    }
+
+    // 削除
+    func deleteReview(year: String, quarter: String, lectureCode: String, reviewId: String) async {
+        let docRef = db.collection("class")
+            .document(year)
+            .collection("Q\(quarter)")
+            .document(lectureCode)
+            .collection("reviews")
+            .document(reviewId)
+        do {
+            try await docRef.delete()
+        } catch {
+            print("❌ deleteReview error: \(error.localizedDescription)")
+        }
+    }
+}
