@@ -15,8 +15,7 @@ struct TaskListView: View {
     private let ticker = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
     
     @AppStorage("taskOpenMode") private var taskOpenModeRaw: String = TaskOpenMode.external.rawValue
-    @State private var selectedTaskURL: URL? = nil
-    @State private var showInAppWeb: Bool = false
+    @State private var selectedTask: SelectedTaskURL? = nil
 
     // ✅ 緊急度に応じた色を判定する関数
     private func urgencyColor(deadline: String, now: Date) -> Color {
@@ -134,8 +133,7 @@ struct TaskListView: View {
                                 if mode == .external {
                                     UIApplication.shared.open(url)
                                 } else {
-                                    selectedTaskURL = url
-                                    showInAppWeb = true
+                                    selectedTask = SelectedTaskURL(url: url)
                                 }
                             }
                         }
@@ -174,12 +172,15 @@ struct TaskListView: View {
             )
         }
         .onReceive(ticker) { now = $0 }
-        .sheet(isPresented: $showInAppWeb) {
-            if let url = selectedTaskURL {
-                TaskAutoLoginWebView(taskURL: url)
-            }
+        .sheet(item: $selectedTask) { item in
+            TaskAutoLoginWebView(taskURL: item.url)
         }
     }
+}
+
+private struct SelectedTaskURL: Identifiable {
+    let id = UUID()
+    let url: URL
 }
 
 
