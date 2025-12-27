@@ -226,7 +226,7 @@ class TaskFetcher: ObservableObject {
         }
 
         let sharedTasks = tasks.map {
-            SharedTask(title: $0.title, deadline: $0.deadline, url: $0.url)
+            SharedTask(title: $0.title, deadline: $0.deadline, url: $0.url, course: $0.course)
         }
         if let sharedData = try? JSONEncoder().encode(sharedTasks),
            let sharedDefaults = UserDefaults(suiteName: Keys.appGroupSuite) {

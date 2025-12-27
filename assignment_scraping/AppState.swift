@@ -14,6 +14,7 @@ class AppState: ObservableObject {
     @Published var studentNumber: String = ""
     
     @Published var startFromSettings: Bool = false //追加
+    @Published var pendingDeepLink: URL? = nil
 
     init() {
         checkLoginStatus()
