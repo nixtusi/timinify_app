@@ -35,19 +35,17 @@ struct SearchView: View {
     }
     
     var body: some View {
-        NavigationStack {
-            content
-                .navigationTitle("検索")
-                .navigationBarTitleDisplayMode(.inline)
-                .searchable(
-                    text: $searchText,
-                    placement: .navigationBarDrawer(displayMode: .always),
-                    prompt: "検索"
-                )
-                .onChange(of: searchText) { _, newValue in
-                    Task { await performSearch(query: newValue) }
-                }
-        }
+        content
+            .navigationTitle("検索")
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(
+                text: $searchText,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: "検索"
+            )
+            .onChange(of: searchText) { _, newValue in
+                Task { await performSearch(query: newValue) }
+            }
     }
     
     private var content: some View {
@@ -76,9 +74,6 @@ struct SearchView: View {
         }
         .listStyle(.insetGrouped)
         .scrollDismissesKeyboard(.immediately)
-        .simultaneousGesture(
-            TapGesture().onEnded { UIApplication.shared.endEditing() }
-        )
     }
     
     private func shouldShow(_ scope: SearchScope) -> Bool {
