@@ -20,9 +20,11 @@ struct MainTabView: View {
     
     @State private var taskRefreshToken = UUID()
 
-    enum Tab: CaseIterable { // CaseIterableを追加
+    private let tabBarContentHeight: CGFloat = 49  // “中身”の高さ（純正と同じ）
+
+    enum Tab: CaseIterable {
         case timetable, task, search, settings
-        
+
         var title: String {
             switch self {
             case .timetable: return "時間割"
@@ -31,7 +33,7 @@ struct MainTabView: View {
             case .settings: return "設定"
             }
         }
-        
+
         var icon: String {
             switch self {
             case .timetable: return "calendar"
@@ -43,12 +45,21 @@ struct MainTabView: View {
     }
 
     var body: some View {
-        contentView
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                customTabBar
+        GeometryReader { proxy in
+            let bottomInset = proxy.safeAreaInsets.bottom
+
+            ZStack(alignment: .bottom) {
+                contentView
+                    // タブバーに“被らない”ように、コンテンツ側だけ49pt押し上げる
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        Color.clear.frame(height: tabBarContentHeight)
+                    }
+
+                customTabBar(bottomInset: bottomInset)
             }
-            .ignoresSafeArea(.keyboard, edges: .bottom) // ←キーボードでタブバーが上がるのを止める
-            .accentColor(Color(hex: "#4B3F96"))
+            .ignoresSafeArea(.keyboard, edges: .bottom)
+            .tint(Color(hex: "#4B3F96"))
+        }
     }
     
     // MARK: - コンテンツビュー
@@ -58,6 +69,8 @@ struct MainTabView: View {
         case .timetable:
             NavigationStack(path: $timetablePath) {
                 TimetableView()
+                    .navigationTitle("時間割")
+                    .navigationBarTitleDisplayMode(.inline) // ← タイトル上固定（Largeをやめる）
             }
             // タブを切り替えるたびにパスをリセット (既存のTabViewと同じ動作)
             .onChange(of: selection) { _, newValue in
@@ -68,18 +81,22 @@ struct MainTabView: View {
                 TaskListView()
                     .id(taskRefreshToken)
                     .navigationTitle("課題")
+                    .navigationBarTitleDisplayMode(.inline)
             }
             .onChange(of: selection) { _, newValue in
                 if newValue != .task { taskPath = NavigationPath() }
             }
         case .search:
-            // SearchはNavigationStack不要 (SearchView内で完結しているため)
-            SearchView()
-            
+            NavigationStack { // ✅ Searchも揃えるならStackで包む
+                SearchView()
+                    .navigationTitle("検索")
+                    .navigationBarTitleDisplayMode(.inline)
+            }
         case .settings:
             NavigationStack(path: $settingsPath) {
                 SettingsView()
                     .navigationTitle("設定")
+                    .navigationBarTitleDisplayMode(.inline)
             }
             .onChange(of: selection) { _, newValue in
                 if newValue != .settings { settingsPath = NavigationPath() }
@@ -87,33 +104,39 @@ struct MainTabView: View {
         }
     }
     
-    // MARK: - カスタムタブバービュー
-    private var customTabBar: some View {
-        HStack {
-            ForEach(Tab.allCases, id: \.self) { tab in
-                Button {
-                    if selection == tab { resetNavigationPath(for: tab) }
-                    selection = tab
-                    
-                    if tab == .task {
-                        taskRefreshToken = UUID()   // ← 課題タブに来た瞬間に強制リフレッシュ
+    // MARK: - カスタムタブバー
+    private func customTabBar(bottomInset: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            Divider()
+
+            HStack {
+                ForEach(Tab.allCases, id: \.self) { tab in
+                    Button {
+                        if selection == tab { resetNavigationPath(for: tab) }
+                        selection = tab
+
+                        if tab == .task {
+                            taskRefreshToken = UUID()
+                        }
+                    } label: {
+                        VStack(spacing: 3) {
+                            Image(systemName: tab.icon)
+                                .font(.system(size: 20))
+                            Text(tab.title)
+                                .font(.caption2)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .contentShape(Rectangle())
                     }
-                } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: tab.icon)
-                            .font(.system(size: 20))
-                        Text(tab.title)
-                            .font(.caption2)
-                    }
-                    .frame(maxWidth: .infinity)
+                    .foregroundStyle(selection == tab ? Color(hex: "#4B3F96") : Color(.systemGray))
                 }
-                .foregroundColor(selection == tab ? Color(hex: "#4B3F96") : Color(.systemGray))
             }
+            .frame(height: tabBarContentHeight)
+            // ホームインジケータ分だけ “下に余白” を足す（背景は後で下まで伸ばす）
+            .padding(.bottom, bottomInset)
         }
-        .frame(height: 49)
-        .padding(.top, 8)
-        .background(Color(.systemGray6))
-        .shadow(color: .black.opacity(0.08), radius: 0.5, x: 0, y: -0.5)
+        .background(.ultraThinMaterial)
+        .ignoresSafeArea(edges: .bottom) // ← 背景を下まで
     }
     
     // MARK: - ユーティリティ

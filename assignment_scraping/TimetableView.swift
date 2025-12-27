@@ -144,6 +144,7 @@ struct TimetableView: View {
             }
             // reloadTick タスクは不要（bumpReload を使わないなら）
         }
+        .navigationBarTitleDisplayMode(.inline)
     }
     
     private var controlPanel: some View {
