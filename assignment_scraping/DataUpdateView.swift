@@ -19,7 +19,6 @@ struct DataUpdateView: View {
 
     @StateObject private var fetcher = TimetableFetcher()
     
-
     // ✅ 追加：実行中タスクとタイマーを握る
     @State private var updateTask: Task<Void, Never>?
     @State private var progressTimer: Timer?
@@ -186,16 +185,29 @@ struct DataUpdateView: View {
         updateTask = Task {
             do {
                 var window = computeDefaultWindow(today: Date())
-                let hasEarly = await hasQ1Q2Data(studentNumber: studentNumber, academicYear: window.ay)
-                if !hasEarly {
+
+                let month = calendar.component(.month, from: Date())
+                let isSecondHalf = (9...12).contains(month) || (1...2).contains(month)
+
+                if isSecondHalf {
+                    let hasEarly = await hasQ1Q2Data(studentNumber: studentNumber, academicYear: window.ay)
                     let endFeb = isLeapYear(window.ay + 1) ? 29 : 28
-                    window.start = ymd(window.ay, 4, 1)
-                    window.end = ymd(window.ay + 1, 2, endFeb)
-                    window.quarters = "1,2,3,4"
+
+                    if hasEarly {
+                        window.start = ymd(window.ay, 9, 1)
+                        window.end = ymd(window.ay + 1, 2, endFeb)
+                        window.quarters = "3,4"
+                    } else {
+                        window.start = ymd(window.ay, 4, 1)
+                        window.end = ymd(window.ay + 1, 2, endFeb)
+                        window.quarters = "1,2,3,4"
+                    }
                 }
+                // 3〜8月は computeDefaultWindow のまま（1,2Q）
 
                 // ❗️フェッチ側もキャンセル協調が必要（下で解説）
                 try await fetcher.fetchAndUpload(
+                    academicYear: window.ay,
                     quarter: window.quarters,
                     startDate: window.start,
                     endDate: window.end
@@ -244,33 +256,4 @@ struct DataUpdateView: View {
         isUpdating = false
         if !updateCompleted { errorMessage = "ユーザーがキャンセルしました" }
     }
-
-//    // MARK: - バーコードのキャンセル協調版
-//    private func fetchAndUpdateBarcodeCancellable() async throws {
-//        try Task.checkCancellation()
-//        isFetchingBarcode = true
-//        defer { isFetchingBarcode = false }
-//
-//        // ✅ 1) 継続の型を明示（CheckedContinuation<Void, Error>）
-//        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-//            BarcodeManager.shared.fetchAndSaveBarcode { image in
-//                if Task.isCancelled {
-//                    continuation.resume(throwing: CancellationError())
-//                    return
-//                }
-//                if image != nil {
-//                    print("✅ バーコード取得・保存成功（DataUpdateView）")
-//                    continuation.resume(returning: ())   // ✅ 2) Void を返す
-//                } else {
-//                    continuation.resume(
-//                        throwing: NSError(
-//                            domain: "Barcode",
-//                            code: -1,
-//                            userInfo: [NSLocalizedDescriptionKey: "バーコードの取得に失敗しました"]
-//                        )
-//                    )
-//                }
-//            }
-//        }
-//    }
 }

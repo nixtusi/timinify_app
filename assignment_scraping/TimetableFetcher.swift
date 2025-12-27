@@ -69,6 +69,7 @@ class TimetableFetcher: ObservableObject {
 
     @MainActor
     func fetchAndUpload(
+        academicYear: Int,
         quarter: String = "1,2",
         startDate: String = "2025-04-01",
         endDate: String = "2025-08-30"
@@ -117,6 +118,7 @@ class TimetableFetcher: ObservableObject {
             // Firestore へのアップロード（スケジュール情報を使って教室をマージ）
             await uploadToFirestore(
                 studentNumber: studentNumber,
+                academicYear: academicYear,
                 items: data.timetables,
                 schedules: data.schedules
             )
@@ -156,13 +158,14 @@ class TimetableFetcher: ObservableObject {
     @MainActor
     private func uploadToFirestore(
         studentNumber: String,
+        academicYear: Int,
         items: [TimetableItem],
         schedules: [DailySchedule]
     ) async {
         print("🔥 [Firestore] アップロード処理開始: 合計 \(items.count) 件のデータを処理します")
         
         let entryYear = "20" + String(studentNumber.prefix(2))
-        let academicYear = "2025" // 現在年等から動的に取得しても良い
+        let academicYearStr = String(academicYear)
 
         for item in items {
             if Task.isCancelled {
@@ -199,7 +202,7 @@ class TimetableFetcher: ObservableObject {
                 .collection("Timetable")
                 .document(entryYear)
                 .collection(studentNumber)
-                .document(academicYear)
+                .document(academicYearStr)
                 .collection("Q\(item.quarter ?? 1)")
 
             do {

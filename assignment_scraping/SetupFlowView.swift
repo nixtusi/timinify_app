@@ -197,15 +197,34 @@ struct SetupFlowView: View {
             do {
                 // ✅ DataUpdateView と同じ期間ロジックを使用
                 var window = computeDefaultWindow(today: Date())
-                let hasEarly = await hasQ1Q2Data(studentNumber: studentNumber, academicYear: window.ay)
-                if !hasEarly {
+
+                let comps = calendar.dateComponents([.month], from: Date())
+                let month = comps.month ?? 1
+
+                let isSecondHalf = (9...12).contains(month) || (1...2).contains(month)
+
+                if isSecondHalf {
+                    // 9〜2月は「前期データがあるなら後期だけ、無ければ通年」
+                    let hasEarly = await hasQ1Q2Data(studentNumber: studentNumber, academicYear: window.ay)
+
                     let endFeb = isLeapYear(window.ay + 1) ? 29 : 28
-                    window.start = ymd(window.ay, 4, 1)
-                    window.end = ymd(window.ay + 1, 2, endFeb)
-                    window.quarters = "1,2,3,4"
+
+                    if hasEarly {
+                        // ✅ すでに1,2Qあるなら 3,4Q だけ
+                        window.start = ymd(window.ay, 9, 1)
+                        window.end = ymd(window.ay + 1, 2, endFeb)
+                        window.quarters = "3,4"
+                    } else {
+                        // ✅ 1,2Qが無いなら通年（1〜4Q）
+                        window.start = ymd(window.ay, 4, 1)
+                        window.end = ymd(window.ay + 1, 2, endFeb)
+                        window.quarters = "1,2,3,4"
+                    }
                 }
+                // 3〜8月は computeDefaultWindow のまま（1,2Q）
                 
                 try await fetcher.fetchAndUpload(
+                    academicYear: window.ay,
                     quarter: window.quarters,
                     startDate: window.start,
                     endDate: window.end
