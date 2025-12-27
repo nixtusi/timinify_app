@@ -16,6 +16,14 @@ struct TaskListView: View {
     
     @AppStorage("taskOpenMode") private var taskOpenModeRaw: String = TaskOpenMode.external.rawValue
     @State private var selectedTask: SelectedTaskURL? = nil
+<<<<<<< Updated upstream
+=======
+    @Binding var pendingTaskURL: URL?
+
+    init(pendingTaskURL: Binding<URL?> = .constant(nil)) {
+        _pendingTaskURL = pendingTaskURL
+    }
+>>>>>>> Stashed changes
 
     // ✅ 緊急度に応じた色を判定する関数
     private func urgencyColor(deadline: String, now: Date) -> Color {
@@ -150,6 +158,10 @@ struct TaskListView: View {
             now = Date()
             fetcher.loadSavedTasks() // 保存データのロードのみ
             fetcher.checkDailyLimit() // 回数制限のチェック
+            consumePendingTaskURL()
+        }
+        .onChange(of: pendingTaskURL) { _, _ in
+            consumePendingTaskURL()
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
@@ -176,6 +188,17 @@ struct TaskListView: View {
             TaskAutoLoginWebView(taskURL: item.url)
         }
     }
+
+    private func consumePendingTaskURL() {
+        guard let url = pendingTaskURL else { return }
+        selectedTask = SelectedTaskURL(url: url)
+        pendingTaskURL = nil
+    }
+}
+
+private struct SelectedTaskURL: Identifiable {
+    let id = UUID()
+    let url: URL
 }
 
 private struct SelectedTaskURL: Identifiable {

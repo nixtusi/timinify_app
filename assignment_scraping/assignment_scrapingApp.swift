@@ -40,6 +40,9 @@ struct BeefTaskApp: App {
                 } message: {
                     Text("メール認証が完了していません。確認メールを送信しますか？")
                 }
+                .onOpenURL { url in
+                    appState.pendingDeepLink = url
+                }
         }
     }
     
@@ -119,7 +122,7 @@ struct BeefTaskApp: App {
                 case .success(let tasks):
                     // 3. 取得した課題をWidget用に変換
                     let sharedTasks = tasks.map {
-                        SharedTask(title: $0.title, deadline: $0.deadline, url: $0.url)
+                        SharedTask(title: $0.title, deadline: $0.deadline, url: $0.url, course: $0.course)
                     }
                     
                     // 4. App GroupのUserDefaultsに保存

@@ -4,13 +4,24 @@
 <dict>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
-		<string>com.yuta-nishimatsu.assignment-scraping.maintenance</string>
-		<string>com.yuta-nishimatsu.assignment-scraping.apprefresh</string>
+		<string>com.yuta.beefapp.maintenance</string>
+		<string>com.yuta.beefapp.refresh</string>
 	</array>
 	<key>NSAllowsArbitraryLoads</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>
 	<dict/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.yuta.beefapp</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>beefapp</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
