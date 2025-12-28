@@ -114,6 +114,9 @@ class TimetableFetcher: ObservableObject {
 
             // 取得したデータを反映
             self.timetableItems = data.timetables
+            saveToLocal()
+            let widgetQuarter = targetQuarters.first ?? 1
+            TimetableLocalStore().syncWidgetFromLocal(year: academicYear, quarter: widgetQuarter)
 
             // Firestore へのアップロード（スケジュール情報を使って教室をマージ）
             await uploadToFirestore(
@@ -292,6 +295,7 @@ class TimetableFetcher: ObservableObject {
 
             timetableItems = items
             saveToLocal()
+            TimetableLocalStore().syncWidgetFromLocal(year: year, quarter: quarter)
             
         } catch {
             errorMessage = "Firestore 読み込み失敗: \(error.localizedDescription)"

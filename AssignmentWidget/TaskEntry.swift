@@ -13,6 +13,7 @@ struct SharedTask: Identifiable, Codable {
     let title: String
     let deadline: String
     let url: String
+    let course: String?
 }
 
 struct TaskEntry: TimelineEntry {
