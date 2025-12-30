@@ -174,64 +174,62 @@ struct AuthView: View {
 
     private func performAuth() {
         guard !studentID.isEmpty, !password.isEmpty else { return }
-        
+
         isLoading = true
         errorMessage = nil
         infoMessage = nil
-        
+
         let email = "\(studentID)@stu.kobe-u.ac.jp".lowercased()
-        
-        // 1. まずログインを試行
-        Auth.auth().signIn(withEmail: email, password: password) { result, error in
+
+        // 1. まず「新規登録」を試みる
+        Auth.auth().createUser(withEmail: email, password: password) { result, error in
             if let user = result?.user {
-                // ログイン成功 -> メール確認状態をチェック
+                // A. 登録成功 -> 確認メール送信へ
                 self.currentAuthUser = user
-                checkVerificationState(user: user)
+                sendVerification(user: user)
             } else {
-                // ログイン失敗 -> エラー内容で分岐
+                // エラーハンドリング
                 if let nsError = error as NSError?,
                    let errorCode = AuthErrorCode(rawValue: nsError.code) {
-                    
-                    if errorCode == .userNotFound {
-                        // ユーザーが存在しない -> 新規登録へ
-                        print("User not found, proceeding to registration.")
-                        registerUser(email: email)
-                    } else if errorCode == .wrongPassword {
-                        // パスワード間違い
-                        self.isLoading = false
-                        self.errorMessage = "パスワードが間違っています。"
+
+                    // B. すでにユーザーが存在する (emailAlreadyInUse) -> ログインを試みる
+                    if errorCode == .emailAlreadyInUse {
+                        print("User exists, proceeding to login.")
+                        loginUser(email: email)
                     } else {
-                        // その他のエラー
+                        // その他の登録エラー
                         self.isLoading = false
-                        self.errorMessage = "エラー: \(error?.localizedDescription ?? "不明なエラー")"
+                        self.errorMessage = "登録エラー: \(error?.localizedDescription ?? "")"
                     }
+                } else {
+                    self.isLoading = false
+                    self.errorMessage = "登録エラー: \(error?.localizedDescription ?? "")"
                 }
             }
         }
     }
 
-    // 新規登録処理
-    private func registerUser(email: String) {
-        Auth.auth().createUser(withEmail: email, password: password) { result, error in
-            if let error = error {
+    // ログイン処理を分離
+    private func loginUser(email: String) {
+        Auth.auth().signIn(withEmail: email, password: password) { result, error in
+            if let user = result?.user {
+                // ログイン成功
+                self.currentAuthUser = user
+                checkVerificationState(user: user)
+            } else {
                 self.isLoading = false
-                // すでに使われている等のエラーハンドリング
-                if let nsError = error as NSError?, AuthErrorCode(rawValue: nsError.code) == .emailAlreadyInUse {
-                    self.errorMessage = "このアカウントは既に存在します。パスワードを確認してください。"
+                // ここでのエラーは「パスワード間違い」などが考えられる
+                if let nsError = error as NSError?,
+                   let errorCode = AuthErrorCode(rawValue: nsError.code) {
+                    if errorCode == .wrongPassword || errorCode == .invalidCredential {
+                        self.errorMessage = "パスワードが間違っています。"
+                    } else {
+                        self.errorMessage = "ログインエラー: \(error?.localizedDescription ?? "")"
+                    }
                 } else {
-                    self.errorMessage = "登録エラー: \(error.localizedDescription)"
+                    self.errorMessage = "ログインエラー: \(error?.localizedDescription ?? "")"
                 }
-                return
             }
-            
-            guard let user = result?.user else {
-                self.isLoading = false
-                return
-            }
-            
-            // 登録成功 -> 確認メール送信
-            self.currentAuthUser = user
-            sendVerification(user: user)
         }
     }
 
